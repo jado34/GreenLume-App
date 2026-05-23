@@ -1,31 +1,31 @@
-import { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from 'react-native';
+import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import * as Haptics from 'expo-haptics';
 import { storage } from '../utils/storage';
-import { Typography } from '../constants/typography';
-import { Colors } from '../constants/colors';
 import { useQueryClient } from '@tanstack/react-query';
 import { USER_DATA_QUERY_KEY } from '../hooks/useUserData';
-
-const { width, height } = Dimensions.get('window');
+import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
+import Purchases from 'react-native-purchases';
+import { Colors } from '../constants/colors';
+import { Typography } from '../constants/typography';
 
 const PREMIUM_FEATURES = [
   {
     id: '1',
     icon: 'leaf',
-    title: 'Real-World Magic',
-    desc: 'We plant a real tree for every month you stay subscribed. Track its growth on your map.',
+    title: 'Detailed Impact Analytics',
+    desc: 'Unlock deep insights and personalized charts detailing your precise carbon offset over time.',
     color: '#10b981', // Emerald
   },
   {
     id: '2',
     icon: 'planet',
-    title: 'Smart Eco-Coach',
-    desc: 'Unlock AI-driven insights that analyze your habits and tell you exactly how to save more.',
+    title: 'Double Carbon Offsets',
+    desc: 'For every action you log, we will double the contribution to real-world verified carbon offset projects.',
     color: '#0ea5e9', // Blue
   },
   {
@@ -74,18 +74,42 @@ export default function PremiumScreen() {
   const queryClient = useQueryClient();
 
   const handleSubscribe = async () => {
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await storage.setPremium(true);
-    queryClient.invalidateQueries({ queryKey: USER_DATA_QUERY_KEY });
-    
-    Toast.show({
-      type: 'success',
-      text1: 'Earth+ Unlocked! 🎉',
-      text2: 'Welcome to the premium experience.',
-      position: 'top',
-    });
-    
-    router.back();
+    try {
+      // Show the RevenueCat Paywall automatically, bypassing if they already have it!
+      const paywallResult = await RevenueCatUI.presentPaywallIfNeeded({
+        requiredEntitlementIdentifier: "GreenLume Pro"
+      });
+
+      // If they bought it or restored it successfully
+      if (paywallResult === PAYWALL_RESULT.PURCHASED || paywallResult === PAYWALL_RESULT.RESTORED) {
+        // Double check the customer info to be certain
+        const customerInfo = await Purchases.getCustomerInfo();
+        if (typeof customerInfo.entitlements.active['GreenLume Pro'] !== "undefined") {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          await storage.setPremium(true);
+          queryClient.invalidateQueries({ queryKey: USER_DATA_QUERY_KEY });
+          
+          Toast.show({
+            type: 'success',
+            text1: 'Earth+ Unlocked! 🎉',
+            text2: 'Welcome to the premium experience.',
+            position: 'top',
+          });
+          
+          router.back();
+        }
+      }
+    } catch (error: any) {
+      // Error handling
+      if (error && !error.userCancelled) {
+        Toast.show({
+          type: 'error',
+          text1: 'Purchase Failed',
+          text2: error.message || 'An error occurred during purchase.',
+          position: 'top',
+        });
+      }
+    }
   };
 
   return (
@@ -170,7 +194,6 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
     borderRadius: 150,
-    filter: 'blur(50px)', // Web support, fallback for RN is just the opacity
   },
   scrollContent: {
     paddingTop: 60,

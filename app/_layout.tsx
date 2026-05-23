@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
-import { LogBox } from 'react-native';
+import { LogBox, Platform } from 'react-native';
+import Purchases from 'react-native-purchases';
 
 LogBox.ignoreLogs([
   'Android Push notifications (remote notifications) functionality provided by expo-notifications was removed',
@@ -41,6 +42,22 @@ export default function RootLayout() {
     PlusJakartaSans_700Bold,
     PlusJakartaSans_800ExtraBold,
   });
+
+  // Initialize RevenueCat
+  useEffect(() => {
+    const initPurchases = async () => {
+      try {
+        Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
+        // Using the same API key for testing as requested
+        const apiKey = 'test_CrkqNHkdRhDDIGdqRjldriHDEaK';
+        Purchases.configure({ apiKey });
+      } catch (error) {
+        console.error('Error initializing RevenueCat:', error);
+      }
+    };
+    
+    initPurchases();
+  }, []);
 
   // Listen for Supabase auth state changes
   useEffect(() => {

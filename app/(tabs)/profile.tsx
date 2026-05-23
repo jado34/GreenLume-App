@@ -16,6 +16,7 @@ import { notifications } from '../../utils/notifications';
 import { Colors } from '../../constants/colors';
 import { Typography, Shadows } from '../../constants/typography';
 import { getDynamicTheme } from '../../utils/theme';
+import RevenueCatUI from 'react-native-purchases-ui';
 
 const AVATAR_COLORS = ['#2e7d32','#1565c0','#6a1b9a','#c62828','#00838f','#e65100','#00695c'];
 function getAvatarColor(name: string): string {
@@ -196,6 +197,23 @@ export default function ProfileScreen() {
       desc: notificationsEnabled ? 'On - 9:00 AM daily' : 'Off - Get reminded to act',
       onPress: toggleNotifications,
       switch: true,
+    },
+    {
+      icon: 'card-outline',
+      label: 'Manage Subscription',
+      desc: 'View or cancel your Earth+ plan',
+      onPress: async () => {
+        try {
+          // Attempt to open the Customer Center
+          await RevenueCatUI.presentCustomerCenter();
+        } catch (error: any) {
+          Toast.show({
+            type: 'error',
+            text1: 'Customer Center',
+            text2: error.message || 'Not available or not configured.',
+          });
+        }
+      },
     },
     {
       icon: 'shield-outline', label: 'Privacy & Security', desc: 'Control your data',
