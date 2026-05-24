@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "GreenLume",
-    "slug": "greenlume-app",
+    "slug": "greenscore-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -26,6 +26,7 @@
         "backgroundColor": "#2e7d32"
       },
       "package": "com.greenlume.app",
+      "googleServicesFile": "./google-services.json",
       "permissions": []
     },
     "web": {

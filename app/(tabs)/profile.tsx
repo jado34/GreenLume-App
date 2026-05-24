@@ -118,14 +118,19 @@ export default function ProfileScreen() {
 
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure?', [
+    const isGuest = authMethod === 'guest';
+    const message = isGuest 
+      ? 'You are currently in Guest Mode. Signing out will permanently delete all your points, streaks, and virtual forest progress. We recommend signing in to save your progress!'
+      : 'Are you sure you want to sign out? Your points, streaks, virtual forest, and progress are safely saved in the cloud and will be restored when you sign back in.';
+
+    Alert.alert(isGuest ? 'Delete Guest Progress?' : 'Sign Out', message, [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Sign Out',
+        text: isGuest ? 'Delete & Sign Out' : 'Sign Out',
         style: 'destructive',
         onPress: async () => {
           // Sign out of Supabase first (if configured)
-          if (isSupabaseConfigured()) {
+          if (isSupabaseConfigured() && !isGuest) {
             try {
               await supabase.auth.signOut();
             } catch (err) {

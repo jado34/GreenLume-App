@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1055126366935",
+    "project_id": "greenlume-app-bea91",
+    "storage_bucket": "greenlume-app-bea91.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1055126366935:android:89582ce0c8b70813059e92",
+        "android_client_info": {
+          "package_name": "com.greenlume.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOZnnlC_pTg1ox8tycPYZRStsKkIgKe_o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

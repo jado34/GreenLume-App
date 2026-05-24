@@ -85,6 +85,9 @@ export default function RootLayout() {
           });
 
           await storage.restoreFromSupabase();
+          
+          // Request and save Expo Push Token for remote notifications
+          await notifications.registerForPushNotificationsAsync(user.id);
         }
 
         if (event === 'SIGNED_OUT') {

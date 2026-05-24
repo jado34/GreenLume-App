@@ -9,6 +9,7 @@ import { storage, UserData, Plant } from '../utils/storage';
 import { Colors } from '../constants/colors';
 import { Typography, Shadows } from '../constants/typography';
 import PlantIllustration from '../components/PlantIllustration';
+import LottieView from 'lottie-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -24,6 +25,10 @@ const STAGE_EMOJIS = {
 export default function NurseryScreen() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Animation state
+  const [isWatering, setIsWatering] = useState(false);
+  const [activeWateringPlant, setActiveWateringPlant] = useState<Plant | null>(null);
 
   const loadData = useCallback(async () => {
     const data = await storage.getUserData();
@@ -78,12 +83,24 @@ export default function NurseryScreen() {
       return;
     }
     
-    const success = await storage.waterPlant(plant.id);
+    // Trigger animation instead of instantly watering
+    setActiveWateringPlant(plant);
+    setIsWatering(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const executeWatering = async () => {
+    if (!activeWateringPlant) return;
+    
+    const success = await storage.waterPlant(activeWateringPlant.id);
     if (success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Toast.show({ type: 'success', text1: 'Watered! 💧', text2: 'Your plant is growing strong.' });
       loadData();
     }
+    
+    setIsWatering(false);
+    setActiveWateringPlant(null);
   };
 
   if (!userData) return null;
@@ -196,6 +213,20 @@ export default function NurseryScreen() {
         )}
 
       </ScrollView>
+
+      {/* Fullscreen Animation Overlay */}
+      {isWatering && (
+        <View style={styles.animationOverlay}>
+          <LottieView
+            source={require('../assets/animations/watering can.json')}
+            autoPlay
+            loop={false}
+            speed={1.5}
+            onAnimationFinish={executeWatering}
+            style={styles.lottieAnim}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -343,4 +374,16 @@ const styles = StyleSheet.create({
   },
   droughtWarningTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.md, color: Colors.white, marginBottom: 4 },
   droughtWarningText: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.sm, color: 'rgba(255,255,255,0.9)', lineHeight: 20 },
+  
+  animationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  lottieAnim: {
+    width: width * 0.8,
+    height: width * 0.8,
+  },
 });

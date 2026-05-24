@@ -162,7 +162,31 @@ export const storage = {
         return;
       }
 
-      // Populate local storage with remote data
+      // Check if deep progress backup is available
+      if (data.raw_user_data) {
+        try {
+          const raw = typeof data.raw_user_data === 'string'
+            ? JSON.parse(data.raw_user_data)
+            : data.raw_user_data;
+
+          if (raw.userData) {
+            await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(raw.userData));
+          }
+          if (raw.actionCounts) {
+            await AsyncStorage.setItem(KEYS.ACTION_COUNTS, JSON.stringify(raw.actionCounts));
+          }
+          if (raw.customAvatar) {
+            await AsyncStorage.setItem(KEYS.CUSTOM_AVATAR, raw.customAvatar);
+          }
+          await AsyncStorage.setItem(KEYS.USER_NAME, data.display_name || user.email);
+          console.log('[Storage] Deep progress restored from Supabase ✓');
+          return;
+        } catch (parseErr) {
+          console.warn('[Storage] Failed to parse deep progress backup:', parseErr);
+        }
+      }
+
+      // Populate local storage with basic statistics from remote database row
       const userData: UserData = {
         totalPoints: data.total_points || 0,
         coins: data.total_points || 50, // Use points as fallback for coins
@@ -186,7 +210,7 @@ export const storage = {
 
       await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(userData));
       await AsyncStorage.setItem(KEYS.USER_NAME, data.display_name || user.email);
-      console.log('[Storage] Progress restored from Supabase ✓');
+      console.log('[Storage] Basic progress restored from Supabase ✓');
     } catch (err) {
       console.error('[Storage] Restoration error:', err);
     }
@@ -208,19 +232,26 @@ export const storage = {
 
       if (!userId) return;
 
+      // Bundle all deep progress state
+      const actionCounts = await storage.getActionCounts();
+      const customAvatar = await storage.getCustomAvatar();
+      const rawUserData = {
+        userData: data,
+        actionCounts,
+        customAvatar,
+      };
+
       const { error } = await supabase.from('leaderboard').upsert({
         user_id: userId,
         display_name: name,
         total_points: data.totalPoints,
         current_streak: data.currentStreak,
         actions_logged: data.actionsLogged,
-        // last_log_date: data.lastLogDate, // Future: update DB schema
-        // longest_streak: data.longestStreak, // Future: update DB schema
-        // earned_badges: data.earnedBadges, // Future: update DB schema
+        raw_user_data: rawUserData,
       }, { onConflict: 'user_id' });
 
       if (error) throw error;
-      console.log('[Storage] Progress synced to Supabase ✓');
+      console.log('[Storage] Deep progress synced to Supabase ✓');
     } catch (err) {
       console.warn('[Storage] Sync failed (offline?):', err);
     }

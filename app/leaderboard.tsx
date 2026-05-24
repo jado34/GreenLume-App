@@ -59,19 +59,6 @@ export default function LeaderboardScreen() {
   const [userName, setUserName] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadUserData = useCallback(async () => {
-    const [data, name] = await Promise.all([
-      storage.getUserData(),
-      storage.getUserName(),
-    ]);
-    setUserData(data);
-    setUserName(name);
-  }, []);
-
-  useFocusEffect(useCallback(() => {
-    loadUserData();
-  }, [loadUserData]));
-
   const fetchGlobalLeaderboard = useCallback(async () => {
     if (!isSupabaseConfigured()) {
       setGlobalEntries(DEFAULT_GLOBAL_MOCK);
@@ -102,49 +89,61 @@ export default function LeaderboardScreen() {
     }
   }, []);
 
+  const syncLeaderboardSilently = async (data: UserData, name: string) => {
+    if (!isSupabaseConfigured() || !data || !name) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const avatarColors = ['#2e7d32', '#1565c0', '#6a1b9a', '#c62828', '#00838f', '#e65100'];
+      const avatarColor = avatarColors[name.charCodeAt(0) % avatarColors.length];
+
+      await supabase.from('leaderboard').upsert({
+        user_id: user.id,
+        display_name: name,
+        total_points: data.totalPoints,
+        current_streak: data.currentStreak,
+        actions_logged: data.actionsLogged,
+        avatar_color: avatarColor,
+      }, { onConflict: 'user_id' });
+    } catch (err) {
+      console.warn('Silent score sync failed:', err);
+    }
+  };
+
   useFocusEffect(useCallback(() => {
-    fetchGlobalLeaderboard();
+    const init = async () => {
+      const [data, name] = await Promise.all([
+        storage.getUserData(),
+        storage.getUserName(),
+      ]);
+      setUserData(data);
+      setUserName(name);
+
+      if (data && name) {
+        await syncLeaderboardSilently(data, name);
+      }
+      await fetchGlobalLeaderboard();
+    };
+
+    setLoading(true);
+    init();
   }, [fetchGlobalLeaderboard]));
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchGlobalLeaderboard(), loadUserData()]);
+    const [data, name] = await Promise.all([
+      storage.getUserData(),
+      storage.getUserName(),
+    ]);
+    setUserData(data);
+    setUserName(name);
+
+    if (data && name) {
+      await syncLeaderboardSilently(data, name);
+    }
+    await fetchGlobalLeaderboard();
     setRefreshing(false);
-  };
-
-  const syncToLeaderboard = async () => {
-    if (!isSupabaseConfigured() || !userData) {
-      Toast.show({ type: 'info', text1: 'Leaderboard', text2: 'Sign in with Google to compete!' });
-      return;
-    }
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        Toast.show({ type: 'info', text1: 'Sign in required', text2: 'Sign in with Google to sync your score!' });
-        return;
-      }
-
-      const avatarColors = ['#2e7d32', '#1565c0', '#6a1b9a', '#c62828', '#00838f', '#e65100'];
-      const avatarColor = avatarColors[userName.charCodeAt(0) % avatarColors.length];
-
-      const { error } = await supabase.from('leaderboard').upsert({
-        user_id: user.id,
-        display_name: userName,
-        total_points: userData.totalPoints,
-        current_streak: userData.currentStreak,
-        actions_logged: userData.actionsLogged,
-        avatar_color: avatarColor,
-      }, { onConflict: 'user_id' });
-
-      if (error) throw error;
-
-      Toast.show({ type: 'success', text1: 'Synced! ✓', text2: 'Your score is now on the leaderboard.' });
-      await fetchGlobalLeaderboard();
-    } catch (err) {
-      console.error('Sync error:', err);
-      Toast.show({ type: 'error', text1: 'Sync failed', text2: 'Please try again later.' });
-    }
   };
 
   // Compute active tab entries dynamically
@@ -261,8 +260,8 @@ export default function LeaderboardScreen() {
           <Text style={styles.headerTitle}>Eco-Leaderboards</Text>
           <TouchableOpacity 
             style={styles.syncBtn} 
-            onPress={syncToLeaderboard}
-            accessibilityLabel="Sync score"
+            onPress={onRefresh}
+            accessibilityLabel="Refresh leaderboard"
             accessibilityRole="button"
           >
             <Ionicons name="sync" size={20} color={Colors.white} />
