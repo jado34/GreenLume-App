@@ -10,6 +10,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { USER_DATA_QUERY_KEY } from '../hooks/useUserData';
 import { Colors } from '../constants/colors';
 import { Typography, Shadows } from '../constants/typography';
+import { getLocalContext, LocalContext } from '../utils/location';
 
 interface Message {
   id: string;
@@ -25,6 +26,7 @@ export default function AICoachScreen() {
   const [inputText, setInputText] = useState('');
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [localContext, setLocalContext] = useState<LocalContext | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -57,15 +59,34 @@ export default function AICoachScreen() {
         updateFreeTipMutation.mutate();
       }
 
-      // Fade in the screen
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }).start();
+      const loadContextAndGreet = async () => {
+        let ctx = null;
+        if (isPremium) {
+          ctx = await getLocalContext();
+          if (ctx) setLocalContext(ctx);
+        }
 
-      if (messages.length === 0) {
-        let greeting = "Hi there! I'm your Earth+ Eco-Coach. I've been analyzing your recent activity.\n\n";
+        // Fade in the screen
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }).start();
+
+        if (messages.length === 0) {
+          let greeting = "Hi there! I'm your Earth+ Eco-Coach. I've been analyzing your recent activity.\n\n";
+          
+          if (ctx) {
+            if (ctx.condition === 'raining' || ctx.condition === 'stormy') {
+              greeting += `🌧️ It looks like it's ${ctx.condition} and ${ctx.temperatureF}°F outside! A great day to focus on indoor energy savings, like turning off unnecessary lights or unplugging unused devices. \n\n`;
+            } else if (ctx.condition === 'sunny' || ctx.condition === 'clear') {
+              greeting += `☀️ It's a beautiful ${ctx.temperatureF}°F and ${ctx.condition} day! Perfect weather to ride your bike or walk instead of driving, which can save up to 2.0kg of CO₂. \n\n`;
+            } else if (ctx.condition === 'snowing') {
+              greeting += `❄️ Brrr, it's ${ctx.temperatureF}°F and ${ctx.condition} outside! Keep warm, and remember that lowering your thermostat by just 1 degree saves significant energy. \n\n`;
+            } else {
+              greeting += `🌡️ It's currently ${ctx.temperatureF}°F and ${ctx.condition} outside. Consider taking public transit today to reduce your carbon footprint! \n\n`;
+            }
+          }
         
         if (userData.currentStreak > 2) {
           greeting += `🔥 Incredible ${userData.currentStreak}-day streak! Consistency is the hardest part of sustainability, and you are crushing it. `;
@@ -86,7 +107,10 @@ export default function AICoachScreen() {
         // Start typewriter stream for first message
         streamMessage(greeting);
       }
-    }, [userData?.isPremium, userData?.lastFreeCoachTipDate])
+    };
+    
+    loadContextAndGreet();
+  }, [userData?.isPremium, userData?.lastFreeCoachTipDate])
   );
 
   // Typewriter effect generator
@@ -162,6 +186,13 @@ export default function AICoachScreen() {
     }
     if (q.includes('transport') || q.includes('bus') || q.includes('car') || q.includes('cycle')) {
       return `Transportation is a major driver of greenhouse gases. 🚌\n\nBy taking public transit or cycling instead of driving, you save around 2.0kg of CO₂ per trip! Try replacing one car trip this week with a walk or transit ride.`;
+    }
+    if (q.includes('weather') || q.includes('outside') || q.includes('today')) {
+      if (localContext) {
+        return `Based on your local weather (${localContext.temperatureF}°F and ${localContext.condition}), I recommend ${localContext.condition === 'raining' || localContext.condition === 'stormy' ? 'focusing on reducing indoor energy consumption' : 'taking advantage of the weather by walking or biking instead of driving'}!`;
+      } else {
+        return `I don't have access to your local weather right now, but generally, try to match your actions to the season!`;
+      }
     }
     
     // Default fallback response
