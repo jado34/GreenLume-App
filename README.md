@@ -113,7 +113,7 @@ Freemium — the core loop is free, always.
 | **Frontend** | React.js + Tailwind CSS |
 | **Backend** | Supabase (database + authentication) |
 | **Hosting** | Vercel |
-| **Design** | Figma |
+| **Design System** | Figma |
 | **Version Control** | GitHub (Agile workflow) |
 
 

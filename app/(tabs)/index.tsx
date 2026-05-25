@@ -113,9 +113,9 @@ export default function HomeScreen() {
     return todayLogged.has(actionKey) ? 1 : 0;
   };
 
-  const points = userData?.totalPoints ?? 0;
+  const points = userData?.todayPoints ?? 0;
   const streak = userData?.currentStreak ?? 0;
-  const actionsCount = userData?.actionsLogged ?? 0;
+  const actionsLogged = userData?.todayActions?.length ?? 0;
   const avatarLetter = userName ? userName[0].toUpperCase() : 'G';
   const avatarColor = getAvatarColor(userName || 'G');
 
@@ -159,9 +159,9 @@ export default function HomeScreen() {
 
           {/* Stats Card */}
           <View style={[styles.statsCard, points >= 1000 && { shadowColor: theme.primary, shadowOpacity: 0.4, shadowRadius: 15, elevation: 12 }]}>
-            <View style={styles.statItem} accessibilityLabel={`${points} Green Score points`}>
+            <View style={styles.statItem} accessibilityLabel={`${points} Green Score points today`}>
               <Text style={styles.statNumber}>{points.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>GreenLume</Text>
+              <Text style={styles.statLabel}>Today's{'\n'}Points</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem} accessibilityLabel={`${streak} day streak`}>
@@ -169,9 +169,9 @@ export default function HomeScreen() {
               <Text style={styles.statLabel}>Day Streak</Text>
             </View>
             <View style={styles.statDivider} />
-            <View style={styles.statItem} accessibilityLabel={`${actionsCount} total actions logged`}>
-              <Text style={styles.statNumber}>{actionsCount}</Text>
-              <Text style={styles.statLabel}>Actions</Text>
+            <View style={styles.statItem} accessibilityLabel={`${actionsLogged} Actions Taken today`}>
+              <Text style={styles.statNumber}>🍃 {actionsLogged}</Text>
+              <Text style={styles.statLabel}>Today's{'\n'}Actions</Text>
             </View>
           </View>
         </LinearGradient>

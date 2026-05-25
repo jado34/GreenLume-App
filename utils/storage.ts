@@ -40,6 +40,7 @@ export interface UserData {
   currentStreak: number;
   lastLogDate: string | null;
   todayActions: string[];
+  todayPoints: number;
   earnedBadges: string[];
   longestStreak: number;
   isPremium: boolean;
@@ -61,6 +62,7 @@ const DEFAULT_USER_DATA: UserData = {
   currentStreak: 0,
   lastLogDate: null,
   todayActions: [],
+  todayPoints: 0,
   earnedBadges: [],
   longestStreak: 0,
   isPremium: false,
@@ -197,6 +199,7 @@ export const storage = {
         currentStreak: data.current_streak || 0,
         lastLogDate: data.last_log_date || null,
         todayActions: [], // Today's actions aren't typically persisted in remote profiles yet
+        todayPoints: 0,
         earnedBadges: data.earned_badges || [], // Requires badges column in DB
         longestStreak: data.longest_streak || data.current_streak || 0,
         isPremium: (await AsyncStorage.getItem(KEYS.IS_PREMIUM)) === 'true',
@@ -269,6 +272,7 @@ export const storage = {
       if (data.waterDroplets === undefined) data.waterDroplets = data.actionsLogged || 5;
       if (data.inventorySeeds === undefined) data.inventorySeeds = 0;
       if (!data.activeForest) data.activeForest = [];
+      if (data.todayPoints === undefined) data.todayPoints = 0;
       if (data.isPremium === undefined) data.isPremium = (await AsyncStorage.getItem(KEYS.IS_PREMIUM)) === 'true';
       if (data.lastFreeCoachTipDate === undefined) data.lastFreeCoachTipDate = null;
       if (data.teamId === undefined) data.teamId = null;
@@ -300,8 +304,17 @@ export const storage = {
       // Reset today's actions if it's a new day
       const today = getTodayString();
       if (data.lastLogDate !== today) {
-        data.todayActions = [];
-        hasChanges = true;
+        if (data.todayActions.length > 0 || data.todayPoints > 0) {
+          data.todayActions = [];
+          data.todayPoints = 0;
+          hasChanges = true;
+        }
+        
+        // Reset streak if a day was missed
+        if (data.lastLogDate !== null && data.lastLogDate !== getPreviousDay() && data.currentStreak > 0) {
+          data.currentStreak = 0;
+          hasChanges = true;
+        }
       }
       
       if (hasChanges) {
@@ -336,6 +349,7 @@ export const storage = {
     }
 
     data.totalPoints += points;
+    data.todayPoints += points;
     data.coins += points; // 1 point = 1 coin
     data.waterDroplets += actionIds.length; // 1 action = 1 water droplet
     data.actionsLogged += actionIds.length;
@@ -377,6 +391,7 @@ export const storage = {
     }
 
     data.totalPoints = Math.max(0, data.totalPoints - points);
+    data.todayPoints = Math.max(0, (data.todayPoints || 0) - points);
     data.coins = Math.max(0, data.coins - points);
     data.waterDroplets = Math.max(0, data.waterDroplets - 1);
     data.actionsLogged = Math.max(0, data.actionsLogged - 1);

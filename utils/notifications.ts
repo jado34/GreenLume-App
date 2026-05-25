@@ -12,6 +12,8 @@ const NOTIFICATION_KEYS = {
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -101,7 +103,6 @@ export const notifications = {
         trigger: {
           hour: time.hour,
           minute: time.minute,
-          repeats: true,
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
         },
       });

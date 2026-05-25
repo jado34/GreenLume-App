@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     }
 
     // Prepare notifications payload for Expo
-    const messages = tokensData.map((item) => ({
+    const messages = ((tokensData || []) as { token: string }[]).map((item) => ({
       to: item.token,
       sound: 'default',
       title: title || 'GreenLume Notification',
@@ -83,8 +83,9 @@ Deno.serve(async (req) => {
     )
   } catch (error) {
     console.error('Edge Function error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Internal Server Error'
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal Server Error' }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

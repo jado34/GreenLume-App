@@ -5,7 +5,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-Deno.serve(async (req) => {
+interface PassedUser {
+  user_id: string;
+  display_name: string | null;
+  total_points: number;
+}
+
+interface PushTokenRecord {
+  user_id: string;
+  token: string;
+}
+
+Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -77,10 +88,11 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log(`Users passed: ${passedUsers.map(u => `${u.display_name} (${u.total_points} pts)`).join(', ')}`)
+    const passedUsersCast = (passedUsers || []) as PassedUser[]
+    console.log(`Users passed: ${passedUsersCast.map(u => `${u.display_name || 'Someone'} (${u.total_points} pts)`).join(', ')}`)
 
     // Now, for each passed user, fetch their push tokens
-    const passedUserIds = passedUsers.map(u => u.user_id)
+    const passedUserIds = passedUsersCast.map(u => u.user_id)
     const { data: tokensData, error: tokenError } = await supabaseClient
       .from('push_tokens')
       .select('user_id, token')
@@ -103,10 +115,11 @@ Deno.serve(async (req) => {
     }
 
     // Map user_id to display_name for messaging
-    const userNames = new Map(passedUsers.map(u => [u.user_id, u.display_name]))
+    const userNames = new Map(passedUsersCast.map(u => [u.user_id, u.display_name || 'Someone']))
 
     // Build notifications payload for Expo
-    const messages = tokensData.map((item) => {
+    const tokensDataCast = (tokensData || []) as PushTokenRecord[]
+    const messages = tokensDataCast.map((item) => {
       return {
         to: item.token,
         sound: 'default',
@@ -141,8 +154,9 @@ Deno.serve(async (req) => {
     )
   } catch (error) {
     console.error('Leaderboard Webhook Error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Internal Server Error'
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal Server Error' }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
