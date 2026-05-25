@@ -48,9 +48,16 @@ export default function RootLayout() {
     const initPurchases = async () => {
       try {
         Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
-        // Using the same API key for testing as requested
-        const apiKey = 'test_CrkqNHkdRhDDIGdqRjldriHDEaK';
-        Purchases.configure({ apiKey });
+        let apiKey = '';
+        if (Platform.OS === 'ios') {
+          apiKey = 'ios_key_placeholder'; // Replace with actual iOS key from RevenueCat
+        } else if (Platform.OS === 'android') {
+          apiKey = 'test_CrkqNHkdRhDDIGdqRjldriHDEaK'; 
+        }
+        
+        if (apiKey) {
+          Purchases.configure({ apiKey });
+        }
       } catch (error) {
         console.error('Error initializing RevenueCat:', error);
       }
@@ -86,12 +93,23 @@ export default function RootLayout() {
 
           await storage.restoreFromSupabase();
           
+          try {
+            await Purchases.logIn(user.id);
+          } catch (e) {
+            console.error('[RevenueCat] Login error:', e);
+          }
+          
           // Request and save Expo Push Token for remote notifications
           await notifications.registerForPushNotificationsAsync(user.id);
         }
 
         if (event === 'SIGNED_OUT') {
           await storage.signOut();
+          try {
+            await Purchases.logOut();
+          } catch (e) {
+            console.error('[RevenueCat] Logout error:', e);
+          }
         }
       }
     );

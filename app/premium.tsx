@@ -80,8 +80,8 @@ export default function PremiumScreen() {
         requiredEntitlementIdentifier: "GreenLume Pro"
       });
 
-      // If they bought it or restored it successfully
-      if (paywallResult === PAYWALL_RESULT.PURCHASED || paywallResult === PAYWALL_RESULT.RESTORED) {
+      // If they bought it or restored it successfully, or already had it
+      if (paywallResult === PAYWALL_RESULT.PURCHASED || paywallResult === PAYWALL_RESULT.RESTORED || paywallResult === PAYWALL_RESULT.NOT_PRESENTED) {
         // Double check the customer info to be certain
         const customerInfo = await Purchases.getCustomerInfo();
         if (typeof customerInfo.entitlements.active['GreenLume Pro'] !== "undefined") {
