@@ -143,7 +143,15 @@ export default function NurseryScreen() {
           </View>
 
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#f59e0b' }]} onPress={handleBuySeed}>
+            {/* FIX #35: Show disabled state when coins < 50 */}
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: (userData.coins ?? 0) >= 50 ? '#f59e0b' : Colors.neutral400 }]}
+              onPress={handleBuySeed}
+              disabled={(userData.coins ?? 0) < 50}
+              accessibilityLabel={`Buy Seed for 50 coins. You have ${userData.coins} coins.`}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: (userData.coins ?? 0) < 50 }}
+            >
               <Text style={styles.actionBtnText}>Buy Seed (50 🪙)</Text>
             </TouchableOpacity>
             
@@ -151,6 +159,9 @@ export default function NurseryScreen() {
               style={[styles.actionBtn, { backgroundColor: userData.inventorySeeds > 0 ? Colors.primary : Colors.neutral400 }]} 
               onPress={handlePlantSeed}
               disabled={userData.inventorySeeds === 0}
+              accessibilityLabel={`Plant Seed. You have ${userData.inventorySeeds} seeds.`}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: userData.inventorySeeds === 0 }}
             >
               <Text style={styles.actionBtnText}>Plant Seed 🌰</Text>
             </TouchableOpacity>
@@ -178,6 +189,10 @@ export default function NurseryScreen() {
                     style={[styles.gridCell, isThirsty && styles.gridCellThirsty, plant.stage === 'withered' && styles.gridCellWithered]}
                     onPress={() => handleWaterPlant(plant)}
                     activeOpacity={0.8}
+                    // FIX #26: Add descriptive accessibilityLabel for each plant cell
+                    accessibilityLabel={`${plant.stage} plant. Water level: ${plant.waterLevel}%. ${plant.stage === 'withered' ? 'Withered, cannot be watered.' : isThirsty ? 'Needs water! Tap to water.' : 'Tap to water.'}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: plant.stage === 'withered' }}
                   >
                     <PlantIllustration stage={plant.stage} size={64} />
                     

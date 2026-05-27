@@ -190,8 +190,7 @@ export default function TeamsScreen() {
             >
               <Text style={styles.joinButtonText}>Join Team</Text>
             </TouchableOpacity>
-            
-            <Text style={styles.hintText}>Try codes: GOOGLE, MSFT, APPLE, ACME</Text>
+            {/* FIX #7: Removed mock invite code hint that was exposing test data in production */}
           </View>
         )}
 

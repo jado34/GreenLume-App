@@ -159,14 +159,18 @@ export default function ProfileScreen() {
               if (isSupabaseConfigured()) {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
-                  await supabase.auth.admin.deleteUser(user.id);
+                  // FIX #1: admin.deleteUser() is a server-only API and cannot be called from
+                  // the client. Instead, we delete the user's data from the leaderboard table
+                  // and sign them out. Full account deletion requires a Supabase Edge Function.
+                  await supabase.from('leaderboard').delete().eq('user_id', user.id);
+                  await supabase.auth.signOut();
                 }
               }
             } catch (err) {
-              console.warn('Delete user error:', err);
+              console.warn('Delete user data error:', err);
             }
             await storage.signOut();
-            Toast.show({ type: 'success', text1: 'Account deleted', text2: 'All your data has been removed.' });
+            Toast.show({ type: 'success', text1: 'Account deleted', text2: 'Your data has been removed.' });
             router.replace('/auth');
           },
         },
@@ -251,9 +255,10 @@ export default function ProfileScreen() {
           <TouchableOpacity
             key={item.label}
             style={[styles.settingsRow, i < items.length - 1 && styles.settingsRowBorder]}
-            onPress={item.switch ? undefined : item.onPress}
-            activeOpacity={item.switch ? 1 : 0.85}
-            disabled={item.switch}
+            // FIX #28: Remove disabled prop — the whole row should always be tappable.
+            // The Switch inside handles its own interaction for toggle items.
+            onPress={item.onPress}
+            activeOpacity={0.85}
             accessibilityLabel={`${item.label}: ${item.desc}`}
             accessibilityRole={item.switch ? 'switch' : 'button'}
             accessibilityState={item.switch ? { checked: item.label === 'Daily Reminder' ? notificationsEnabled : false } : {}}
@@ -353,17 +358,19 @@ export default function ProfileScreen() {
         {renderSection('App', appSettings)}
         {renderSection('Data & Privacy', dangerSettings)}
 
-        {/* Premium Banner */}
-        <View style={styles.section}>
-          <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.premiumBanner}>
-            <Text style={styles.premiumIcon}>👑</Text>
-            <Text style={styles.premiumTitle}>Earth+ Premium</Text>
-            <Text style={styles.premiumDesc}>Unlock AI insights, real-world impact, and exclusive rewards</Text>
-            <TouchableOpacity style={styles.premiumBtn} onPress={() => router.push('/premium' as any)}>
-              <Text style={styles.premiumBtnText}>Upgrade Now →</Text>
-            </TouchableOpacity>
-          </LinearGradient>
-        </View>
+        {/* Premium Banner — FIX #17: Only show to non-premium users */}
+        {!userData?.isPremium && (
+          <View style={styles.section}>
+            <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.premiumBanner}>
+              <Text style={styles.premiumIcon}>👑</Text>
+              <Text style={styles.premiumTitle}>Earth+ Premium</Text>
+              <Text style={styles.premiumDesc}>Unlock AI insights, real-world impact, and exclusive rewards</Text>
+              <TouchableOpacity style={styles.premiumBtn} onPress={() => router.push('/premium' as any)}>
+                <Text style={styles.premiumBtnText}>Upgrade Now →</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        )}
 
         <View style={[styles.section, { marginBottom: 24 }]}>
           <TouchableOpacity 

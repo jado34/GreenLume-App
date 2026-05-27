@@ -1,6 +1,16 @@
+// Local Eco-Map Screen
+// NOTE: react-native-maps requires a Google Maps API key to work in production APKs.
+// Without it the MapView crashes the app on launch. This screen uses a safe card-list
+// view with deep-links into the device's native maps app instead, so it works on ALL
+// devices without any API key. To re-enable the embedded map, add your Google Maps API
+// key to app.json under android.config.googleMaps.apiKey and re-add the MapView.
+
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
-import MapView, { Marker, Callout } from 'react-native-maps';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  ActivityIndicator, Linking, Platform,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Toast from 'react-native-toast-message';
@@ -8,292 +18,260 @@ import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { Colors } from '../constants/colors';
 import { Typography, Shadows } from '../constants/typography';
-import { useLogActionMutation } from '../hooks/useUserData';
 
-const { width, height } = Dimensions.get('window');
+type EcoLocation = {
+  id: string;
+  title: string;
+  type: 'shop' | 'event' | 'ev' | 'food';
+  description: string;
+  lat: number;
+  lng: number;
+  points: number;
+  distance?: string;
+};
 
-// Fallback mock data for eco-friendly locations if location is denied
-const DEFAULT_ECO_LOCATIONS = [
+// Default fallback locations (San Francisco) used when location is denied
+const DEFAULT_ECO_LOCATIONS: EcoLocation[] = [
   { id: '1', title: 'Zero Waste Market', type: 'shop', description: 'Bring your own containers!', lat: 37.78825, lng: -122.4324, points: 50 },
   { id: '2', title: 'Community Cleanup', type: 'event', description: 'Join us Saturday at 10 AM', lat: 37.791, lng: -122.44, points: 150 },
   { id: '3', title: 'EV Charging Station', type: 'ev', description: 'Fast charging available', lat: 37.785, lng: -122.425, points: 20 },
-  { id: '4', title: 'Farmer\'s Market', type: 'food', description: 'Fresh local organic produce', lat: 37.782, lng: -122.438, points: 40 },
+  { id: '4', title: "Farmer's Market", type: 'food', description: 'Fresh local organic produce', lat: 37.782, lng: -122.438, points: 40 },
 ];
 
+const TYPE_CONFIG: Record<EcoLocation['type'], { icon: string; color: string; label: string }> = {
+  shop:  { icon: 'basket',    color: '#10b981', label: 'Zero Waste' },
+  event: { icon: 'people',    color: '#f59e0b', label: 'Event' },
+  ev:    { icon: 'flash',     color: '#3b82f6', label: 'EV Charging' },
+  food:  { icon: 'nutrition', color: '#ec4899', label: 'Food' },
+};
+
 export default function LocalMapScreen() {
-  const logActionMutation = useLogActionMutation();
-  const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mapRegion, setMapRegion] = useState({
-    latitude: 37.78825,
-    longitude: -122.4324,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
-  });
-  const [ecoLocations, setEcoLocations] = useState<typeof DEFAULT_ECO_LOCATIONS>(DEFAULT_ECO_LOCATIONS);
+  const [locationGranted, setLocationGranted] = useState(false);
+  const [ecoLocations, setEcoLocations] = useState<EcoLocation[]>(DEFAULT_ECO_LOCATIONS);
 
   useEffect(() => {
     (async () => {
       try {
-        let { status } = await Location.requestForegroundPermissionsAsync();
+        const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
           Toast.show({
             type: 'info',
             text1: 'Location Permission',
-            text2: 'Permission denied. Using San Francisco as default.',
+            text2: 'Using example locations. Enable location for nearby spots.',
           });
           setLoading(false);
           return;
         }
 
-        let loc = await Location.getCurrentPositionAsync({});
+        setLocationGranted(true);
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         const lat = loc.coords.latitude;
         const lng = loc.coords.longitude;
-        
-        setMapRegion({
-          latitude: lat,
-          longitude: lng,
-          latitudeDelta: 0.03,
-          longitudeDelta: 0.03,
-        });
 
-        // Generate mock eco spots in the proximity of user's real location
-        const userEcoLocations = [
-          { id: '1', title: 'Local Zero Waste Shop', type: 'shop', description: 'Plastic-free bulk goods!', lat: lat + 0.003, lng: lng - 0.002, points: 50 },
-          { id: '2', title: 'Neighborhood Tree Planting', type: 'event', description: 'Community forestry event this Saturday', lat: lat + 0.007, lng: lng + 0.005, points: 150 },
-          { id: '3', title: 'Solar Powered EV Charger', type: 'ev', description: 'Level 2 & DC Fast Charger', lat: lat - 0.005, lng: lng - 0.006, points: 20 },
-          { id: '4', title: 'Farmers Organic Market', type: 'food', description: 'Locally sourced organic produce', lat: lat - 0.002, lng: lng + 0.004, points: 40 },
+        // Generate mock eco-spots near the user's real location
+        const nearby: EcoLocation[] = [
+          { id: '1', title: 'Local Zero Waste Shop', type: 'shop', description: 'Plastic-free bulk goods nearby!', lat: lat + 0.003, lng: lng - 0.002, points: 50, distance: '~350m' },
+          { id: '2', title: 'Neighbourhood Tree Planting', type: 'event', description: 'Community forestry event this Saturday', lat: lat + 0.007, lng: lng + 0.005, points: 150, distance: '~780m' },
+          { id: '3', title: 'Solar EV Charger', type: 'ev', description: 'Level 2 & DC Fast Charger', lat: lat - 0.005, lng: lng - 0.006, points: 20, distance: '~1.1km' },
+          { id: '4', title: 'Farmers Organic Market', type: 'food', description: 'Locally sourced organic produce', lat: lat - 0.002, lng: lng + 0.004, points: 40, distance: '~430m' },
         ];
-        setEcoLocations(userEcoLocations);
+        setEcoLocations(nearby);
       } catch (err) {
-        console.warn('Error fetching location:', err);
-        Toast.show({
-          type: 'error',
-          text1: 'Location Error',
-          text2: 'Failed to retrieve your current location.',
-        });
+        console.warn('Location error:', err);
+        Toast.show({ type: 'error', text1: 'Location Error', text2: 'Could not get your location.' });
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const getPinColor = (type: string) => {
-    switch (type) {
-      case 'shop': return '#10b981';
-      case 'event': return '#f59e0b';
-      case 'ev': return '#3b82f6';
-      case 'food': return '#ec4899';
-      default: return Colors.primary;
-    }
+  const openInMaps = (loc: EcoLocation) => {
+    const label = encodeURIComponent(loc.title);
+    const url = Platform.OS === 'ios'
+      ? `maps:0,0?q=${label}@${loc.lat},${loc.lng}`
+      : `geo:${loc.lat},${loc.lng}?q=${loc.lat},${loc.lng}(${label})`;
+    Linking.openURL(url).catch(() =>
+      Toast.show({ type: 'error', text1: 'Cannot open Maps', text2: 'No maps app found on device.' })
+    );
   };
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'shop': return 'basket';
-      case 'event': return 'people';
-      case 'ev': return 'flash';
-      case 'food': return 'nutrition';
-      default: return 'leaf';
-    }
-  };
-
-  const handleCheckIn = (loc: typeof DEFAULT_ECO_LOCATIONS[0]) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    logActionMutation.mutate({ points: loc.points, actionIds: [`checkin_${loc.id}`] });
+  const handleLogAction = (loc: EcoLocation) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Navigate to the Log screen — the user records the actual sustainable
+    // action they took at this location and earns points there.
     Toast.show({
-      type: 'success',
-      text1: `Checked in to ${loc.title}!`,
-      text2: `You earned ${loc.points} GreenLume points.`,
+      type: 'info',
+      text1: `At ${loc.title}?`,
+      text2: 'Log what you did there to earn your points!',
     });
+    router.push('/(tabs)/log');
   };
 
   return (
     <View style={styles.container}>
-      <MapView
-        style={styles.map}
-        region={mapRegion}
-        onRegionChangeComplete={(region) => setMapRegion(region)}
-        showsUserLocation={true}
-      >
-        {ecoLocations.map(loc => (
-          <Marker
-            key={loc.id}
-            coordinate={{ latitude: loc.lat, longitude: loc.lng }}
-            onPress={() => setSelectedLocation(loc.id)}
-          >
-            <View style={[styles.pin, { backgroundColor: getPinColor(loc.type) }]}>
-              <Ionicons name={getIcon(loc.type) as any} size={16} color={Colors.white} />
-            </View>
-            <Callout tooltip onPress={() => handleCheckIn(loc)}>
-              <View style={styles.calloutContainer}>
-                <Text style={styles.calloutTitle}>{loc.title}</Text>
-                <Text style={styles.calloutDesc}>{loc.description}</Text>
-                <TouchableOpacity style={styles.checkInBtn}>
-                  <Text style={styles.checkInBtnText}>Check-in (+{loc.points} pts)</Text>
-                </TouchableOpacity>
-              </View>
-            </Callout>
-          </Marker>
-        ))}
-      </MapView>
-
-      {/* Header Overlay */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+      {/* Header */}
+      <LinearGradient colors={['#1b5e20', '#2e7d32']} style={styles.header}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => router.back()}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+        >
+          <Ionicons name="arrow-back" size={22} color={Colors.white} />
         </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Local Eco-Map</Text>
+          <Text style={styles.headerSub}>
+            {locationGranted ? 'Eco-spots near you' : 'Example locations — enable location for real spots'}
+          </Text>
         </View>
-        <View style={{ width: 40 }} />
-      </View>
+        <View style={styles.headerBadge}>
+          <Ionicons name="location" size={14} color={Colors.white} />
+          <Text style={styles.headerBadgeText}>{locationGranted ? 'Live' : 'Demo'}</Text>
+        </View>
+      </LinearGradient>
 
-      {/* Legend Overlay */}
-      <View style={styles.legendContainer}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
-          <Text style={styles.legendText}>Zero Waste</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
-          <Text style={styles.legendText}>Events</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#3b82f6' }]} />
-          <Text style={styles.legendText}>EV Charging</Text>
-        </View>
-      </View>
-
-      {/* Loading Overlay */}
-      {loading && (
-        <View style={styles.loadingOverlay}>
+      {loading ? (
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Locating eco-friendly spots near you...</Text>
+          <Text style={styles.loadingText}>Finding eco-spots near you...</Text>
         </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+          {/* Info Banner */}
+          <View style={styles.infoBanner}>
+            <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
+            <Text style={styles.infoText}>
+              Tap <Text style={{ fontWeight: 'bold' }}>Directions</Text> to open in your Maps app, or tap{' '}
+              <Text style={{ fontWeight: 'bold' }}>Check-in</Text> to earn points!
+            </Text>
+          </View>
+
+          {ecoLocations.map((loc) => {
+            const config = TYPE_CONFIG[loc.type];
+            return (
+              <View key={loc.id} style={styles.card}>
+                {/* Icon */}
+                <View style={[styles.iconWrap, { backgroundColor: `${config.color}18` }]}>
+                  <Ionicons name={config.icon as any} size={26} color={config.color} />
+                </View>
+
+                {/* Info */}
+                <View style={styles.cardBody}>
+                  <View style={styles.cardRow}>
+                    <View style={[styles.typeBadge, { backgroundColor: `${config.color}18` }]}>
+                      <Text style={[styles.typeBadgeText, { color: config.color }]}>{config.label}</Text>
+                    </View>
+                    {loc.distance && (
+                      <Text style={styles.distanceText}>{loc.distance}</Text>
+                    )}
+                  </View>
+                  <Text style={styles.cardTitle}>{loc.title}</Text>
+                  <Text style={styles.cardDesc}>{loc.description}</Text>
+
+                  {/* Actions */}
+                  <View style={styles.cardActions}>
+                    <TouchableOpacity
+                      style={styles.directionsBtn}
+                      onPress={() => openInMaps(loc)}
+                      accessibilityLabel={`Get directions to ${loc.title}`}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="navigate-outline" size={14} color={Colors.info} />
+                      <Text style={styles.directionsBtnText}>Directions</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.checkInBtn, { borderColor: config.color }]}
+                      onPress={() => handleLogAction(loc)}
+                      accessibilityLabel={`Log a sustainable action at ${loc.title} to earn points`}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="pencil" size={14} color={config.color} />
+                      <Text style={[styles.checkInBtnText, { color: config.color }]}>
+                        Log Action
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+
+          <View style={styles.mapsNote}>
+            <Ionicons name="bulb-outline" size={16} color={Colors.textMuted} />
+            <Text style={styles.mapsNoteText}>
+              Visit a spot, do something sustainable there, then tap{' '}
+              <Text style={{ fontFamily: Typography.fontFamily.bold }}>Log Action</Text>{' '}
+              to record it and earn your points on the Log screen.
+            </Text>
+          </View>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: Colors.neutral50 },
+
+  // Header
+  header: { paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize['2xl'], color: Colors.white },
+  headerSub: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
+  headerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  headerBadgeText: { fontFamily: Typography.fontFamily.bold, fontSize: 10, color: Colors.white },
+
+  // Loading
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm, color: Colors.textMuted },
+
+  // List
+  list: { padding: 16, gap: 14 },
+
+  // Info banner
+  infoBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: Colors.infoLight, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.info + '30',
   },
-  map: {
-    width: Dimensions.get('window').width,
-    height: Dimensions.get('window').height,
+  infoText: { flex: 1, fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: Colors.info, lineHeight: 18 },
+
+  // Card
+  card: {
+    flexDirection: 'row', gap: 14,
+    backgroundColor: Colors.white, borderRadius: 18, padding: 16,
+    borderWidth: 1, borderColor: Colors.neutral200, ...Shadows.sm,
   },
-  header: {
-    position: 'absolute',
-    top: 60,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 24,
-    padding: 12,
-    ...Shadows.md,
-    zIndex: 5,
+  iconWrap: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  cardBody: { flex: 1 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  typeBadgeText: { fontFamily: Typography.fontFamily.bold, fontSize: 10, letterSpacing: 0.4 },
+  distanceText: { fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.xs, color: Colors.textMuted },
+  cardTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.md, color: Colors.textPrimary, marginBottom: 4 },
+  cardDesc: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.sm, color: Colors.textSecondary, marginBottom: 12, lineHeight: 18 },
+
+  // Card actions
+  cardActions: { flexDirection: 'row', gap: 10 },
+  directionsBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    borderWidth: 1.5, borderColor: Colors.info, borderRadius: 10, paddingVertical: 8,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitleContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.lg,
-    color: Colors.textPrimary,
-  },
-  pin: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.white,
-    ...Shadows.sm,
-  },
-  calloutContainer: {
-    width: 200,
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 12,
-    ...Shadows.lg,
-  },
-  calloutTitle: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.md,
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  calloutDesc: {
-    fontFamily: Typography.fontFamily.regular,
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
-    marginBottom: 12,
-  },
+  directionsBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.xs, color: Colors.info },
   checkInBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: 'center',
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    borderWidth: 1.5, borderRadius: 10, paddingVertical: 8,
   },
-  checkInBtnText: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.xs,
-    color: Colors.white,
+  checkInBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.xs },
+
+  // Footer note
+  mapsNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: Colors.neutral100, borderRadius: 12, padding: 12, marginTop: 4,
   },
-  legendContainer: {
-    position: 'absolute',
-    bottom: 40,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    padding: 16,
-    ...Shadows.md,
-    zIndex: 5,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  legendText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontSize: Typography.fontSize.xs,
-    color: Colors.textSecondary,
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 100,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontFamily: Typography.fontFamily.semiBold,
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
-  },
+  mapsNoteText: { flex: 1, fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: Colors.textMuted, lineHeight: 17 },
 });

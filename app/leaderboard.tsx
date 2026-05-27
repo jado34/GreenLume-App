@@ -22,24 +22,24 @@ interface LeaderboardEntry {
 
 const MOCK_COMPANY_USERS: Record<string, Omit<LeaderboardEntry, 'rank'>[]> = {
   'Google Inc.': [
-    { display_name: 'Sarah Chen', total_points: 4850, current_streak: 22, avatar_color: '#0f9d58' },
-    { display_name: 'David Miller', total_points: 3920, current_streak: 15, avatar_color: '#4285f4' },
-    { display_name: 'Elena Rostova', total_points: 3100, current_streak: 12, avatar_color: '#f4b400' },
-    { display_name: 'Marcus Brody', total_points: 2450, current_streak: 8, avatar_color: '#db4437' },
+    { display_name: 'Alex Rivera', total_points: 4850, current_streak: 22, avatar_color: '#0f9d58' },
+    { display_name: 'Jordan Kim', total_points: 3920, current_streak: 15, avatar_color: '#4285f4' },
+    { display_name: 'Priya Nair', total_points: 3100, current_streak: 12, avatar_color: '#f4b400' },
+    { display_name: 'Marcus Webb', total_points: 2450, current_streak: 8, avatar_color: '#db4437' },
   ],
   'Microsoft Corp.': [
-    { display_name: 'Satya N.', total_points: 5200, current_streak: 30, avatar_color: '#f25022' },
-    { display_name: 'Amy Hood', total_points: 4100, current_streak: 18, avatar_color: '#7fba00' },
-    { display_name: 'Brad Smith', total_points: 3800, current_streak: 14, avatar_color: '#00a4ef' },
+    { display_name: 'Sam Okafor', total_points: 5200, current_streak: 30, avatar_color: '#f25022' },
+    { display_name: 'Elena Frost', total_points: 4100, current_streak: 18, avatar_color: '#7fba00' },
+    { display_name: 'James Patel', total_points: 3800, current_streak: 14, avatar_color: '#00a4ef' },
   ],
   'Apple Inc.': [
-    { display_name: 'Tim Cook', total_points: 6100, current_streak: 40, avatar_color: '#333333' },
-    { display_name: 'Craig F.', total_points: 5400, current_streak: 29, avatar_color: '#8e8e93' },
-    { display_name: 'Lisa Jackson', total_points: 4900, current_streak: 25, avatar_color: '#34c759' },
+    { display_name: 'Casey Morgan', total_points: 6100, current_streak: 40, avatar_color: '#333333' },
+    { display_name: 'Dana Reyes', total_points: 5400, current_streak: 29, avatar_color: '#8e8e93' },
+    { display_name: 'Avery Chen', total_points: 4900, current_streak: 25, avatar_color: '#34c759' },
   ],
   'Acme Corporation': [
-    { display_name: 'Wile E. Coyote', total_points: 2900, current_streak: 9, avatar_color: '#e65100' },
-    { display_name: 'Road Runner', total_points: 5800, current_streak: 35, avatar_color: '#00838f' },
+    { display_name: 'Taylor Brooks', total_points: 2900, current_streak: 9, avatar_color: '#e65100' },
+    { display_name: 'Quinn Alvarez', total_points: 5800, current_streak: 35, avatar_color: '#00838f' },
   ]
 };
 
@@ -512,7 +512,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.lg,
+    // FIX #20: Increase to 2xl to match other screen header font sizes
+    fontSize: Typography.fontSize['2xl'],
     color: Colors.white,
   },
   syncBtn: {

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -76,6 +76,8 @@ export default function PremiumScreen() {
   const handleSubscribe = async () => {
     try {
       // Show the RevenueCat Paywall automatically, bypassing if they already have it!
+      // FIX #13: IMPORTANT — Verify that "GreenLume Pro" exactly matches your entitlement
+      // identifier in the RevenueCat dashboard. A mismatch will break subscription detection.
       const paywallResult = await RevenueCatUI.presentPaywallIfNeeded({
         requiredEntitlementIdentifier: "GreenLume Pro"
       });
@@ -88,19 +90,18 @@ export default function PremiumScreen() {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           await storage.setPremium(true);
           queryClient.invalidateQueries({ queryKey: USER_DATA_QUERY_KEY });
-          
+
           Toast.show({
             type: 'success',
             text1: 'Earth+ Unlocked! 🎉',
             text2: 'Welcome to the premium experience.',
             position: 'top',
           });
-          
+
           router.back();
         }
       }
     } catch (error: any) {
-      // Error handling
       if (error && !error.userCancelled) {
         Toast.show({
           type: 'error',
@@ -125,11 +126,13 @@ export default function PremiumScreen() {
       <View style={[styles.orb, { bottom: -50, left: -100, backgroundColor: 'rgba(245, 158, 11, 0.1)' }]} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Close Button */}
+        {/* Close Button — FIX #30: Add accessibilityLabel and Role */}
         <TouchableOpacity
           style={styles.closeButton}
           onPress={() => router.back()}
           activeOpacity={0.8}
+          accessibilityLabel="Close premium screen"
+          accessibilityRole="button"
         >
           <View style={styles.closeIconBg}>
             <Ionicons name="close" size={24} color={Colors.white} />

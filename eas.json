@@ -6,13 +6,23 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://exsofcvnaceygdycmhwr.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4c29mY3ZuYWNleWdkeWNtaHdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MTg5NDIsImV4cCI6MjA5NTA5NDk0Mn0.ki_ebGQMFnbV3H15c4qfLd9svEN4F_05_PIrYWZiTAU",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "352748040382-u3qi1jqic0npd8jo9ojni7b1in7ln0ji.apps.googleusercontent.com",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_OxwSRSZmHOQnfTHeNrrQwDOUAws"
+      }
     },
     "preview": {
       "distribution": "internal",
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "1",
-        "NODE_OPTIONS": "--max-old-space-size=4096"
+        "NODE_OPTIONS": "--max-old-space-size=4096",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://exsofcvnaceygdycmhwr.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4c29mY3ZuYWNleWdkeWNtaHdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MTg5NDIsImV4cCI6MjA5NTA5NDk0Mn0.ki_ebGQMFnbV3H15c4qfLd9svEN4F_05_PIrYWZiTAU",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "352748040382-u3qi1jqic0npd8jo9ojni7b1in7ln0ji.apps.googleusercontent.com",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_OxwSRSZmHOQnfTHeNrrQwDOUAws"
       },
       "android": {
         "buildType": "apk"

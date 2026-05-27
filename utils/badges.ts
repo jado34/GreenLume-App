@@ -126,7 +126,7 @@ export const BADGES: BadgeDefinition[] = [
     id: 'eco_legend',
     name: 'Eco Legend',
     description: 'Earn all 11 other badges',
-    icon: 'crown',
+    icon: 'ribbon',
     color: '#8b5cf6',
     points: 500,
     requirement: (data) => data.earnedBadges.length >= 11,

@@ -19,6 +19,8 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(40)).current;
@@ -40,15 +42,30 @@ export default function AuthScreen() {
 
   // --- Email + Password Auth ---
   const handleEmailAuth = async () => {
-    if (!email || !password) {
-      Toast.show({ type: 'error', text1: 'Missing fields', text2: 'Please enter both email and password.' });
+    // FIX #9: Email format validation
+    const emailValid = /\S+@\S+\.\S+/.test(email.trim());
+    if (!email.trim() || !emailValid) {
+      setEmailError('Please enter a valid email address.');
       return;
+    } else {
+      setEmailError('');
+    }
+
+    // FIX #8: Password minimum length validation
+    if (!password || (!isLogin && password.length < 8)) {
+      setPasswordError(isLogin ? 'Please enter your password.' : 'Password must be at least 8 characters.');
+      return;
+    } else if (!password) {
+      setPasswordError('Please enter your password.');
+      return;
+    } else {
+      setPasswordError('');
     }
 
     setLoading('email');
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
         
         await storage.setAuthenticated(data.user?.email?.split('@')[0] || 'User', 'email', data.user!.id);
@@ -56,7 +73,7 @@ export default function AuthScreen() {
         Toast.show({ type: 'success', text1: 'Welcome back! 🌿' });
         router.replace('/(tabs)'); // Route to tabs directly
       } else {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
         if (error) throw error;
         
         await storage.setAuthenticated(data.user?.email?.split('@')[0] || 'User', 'email', data.user!.id);
@@ -109,7 +126,7 @@ export default function AuthScreen() {
             {/* Form */}
             <View style={styles.formContainer}>
               <View style={styles.inputWrap}>
-                <Ionicons name="mail-outline" size={20} color={Colors.textMuted} style={styles.inputIcon} />
+                <Ionicons name="mail-outline" size={20} color={emailError ? Colors.error : Colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Email address"
@@ -117,24 +134,31 @@ export default function AuthScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(t) => { setEmail(t); if (emailError) setEmailError(''); }}
+                  accessibilityLabel="Email address"
                 />
               </View>
+              {!!emailError && <Text style={styles.fieldError}>{emailError}</Text>}
 
               <View style={styles.inputWrap}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.textMuted} style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={20} color={passwordError ? Colors.error : Colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Password"
                   placeholderTextColor={Colors.neutral400}
                   secureTextEntry={!showPassword}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(t) => { setPassword(t); if (passwordError) setPasswordError(''); }}
+                  accessibilityLabel="Password"
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ padding: 4 }}>
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ padding: 4 }} accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}>
                   <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
+              {!!passwordError && <Text style={styles.fieldError}>{passwordError}</Text>}
+              {!isLogin && !passwordError && (
+                <Text style={styles.passwordHint}>Minimum 8 characters</Text>
+              )}
 
               <TouchableOpacity
                 style={[styles.authButton, styles.emailButton]}
@@ -149,7 +173,7 @@ export default function AuthScreen() {
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.toggleRow} onPress={() => setIsLogin(!isLogin)} activeOpacity={0.6}>
+              <TouchableOpacity style={styles.toggleRow} onPress={() => { setIsLogin(!isLogin); setEmailError(''); setPasswordError(''); }} activeOpacity={0.6}>
                 <Text style={styles.toggleText}>
                   {isLogin ? "Don't have an account? " : "Already have an account? "}
                   <Text style={styles.toggleTextBold}>{isLogin ? 'Sign up' : 'Log in'}</Text>
@@ -190,11 +214,12 @@ export default function AuthScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Privacy */}
+            {/* Privacy — FIX #10: Terms and Privacy links are now tappable */}
             <Text style={styles.privacy}>
               By continuing, you agree to our{' '}
-              <Text style={styles.link}>Terms of Service</Text> and{' '}
-              <Text style={styles.link}>Privacy Policy</Text>
+              <Text style={styles.link} onPress={() => router.push('/terms-of-service' as any)}>Terms of Service</Text>
+              {' '}and{' '}
+              <Text style={styles.link} onPress={() => router.push('/privacy-policy' as any)}>Privacy Policy</Text>
             </Text>
           </Animated.View>
         </ScrollView>
@@ -234,4 +259,6 @@ const styles = StyleSheet.create({
   guestText: { fontFamily: Typography.fontFamily.semiBold, fontSize: Typography.fontSize.sm, color: Colors.primary, textAlign: 'center', paddingVertical: 4 },
   privacy: { fontFamily: Typography.fontFamily.regular, fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 32, lineHeight: 16 },
   link: { color: Colors.primary, fontFamily: Typography.fontFamily.medium },
+  fieldError: { fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.xs, color: Colors.error, marginTop: -8 },
+  passwordHint: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: Colors.textMuted, marginTop: -8 },
 });

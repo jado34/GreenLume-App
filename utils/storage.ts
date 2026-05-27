@@ -50,6 +50,9 @@ export interface UserData {
   customSquadName: string | null;
   customSquadCode: string | null;
   isEsgAdmin?: boolean;
+  // Weekly action log: maps ISO Monday date (week key) -> {actionId: daysLogged[]}
+  weeklyActionLog: Record<string, Record<string, string[]>>;
+  lastWeekKey: string | null;
 }
 
 const DEFAULT_USER_DATA: UserData = {
@@ -72,7 +75,17 @@ const DEFAULT_USER_DATA: UserData = {
   customSquadName: null,
   customSquadCode: null,
   isEsgAdmin: false,
+  weeklyActionLog: {},
+  lastWeekKey: null,
 };
+
+/** Returns the Monday of the current ISO week as YYYY-MM-DD */
+function getWeekKey(): string {
+  const d = new Date();
+  const day = d.getDay() || 7; // Mon=1..Sun=7
+  d.setDate(d.getDate() - day + 1);
+  return d.toISOString().split('T')[0];
+}
 
 function getTodayString(): string {
   return new Date().toISOString().split('T')[0];
@@ -189,10 +202,11 @@ export const storage = {
       }
 
       // Populate local storage with basic statistics from remote database row
+      // FIX #3: Do NOT derive coins from total_points — they are separate currencies.
       const userData: UserData = {
         totalPoints: data.total_points || 0,
-        coins: data.total_points || 50, // Use points as fallback for coins
-        waterDroplets: data.actions_logged || 5, // Use actions as fallback
+        coins: 50, // Default starting coins — coins aren't tracked remotely yet
+        waterDroplets: 5, // Default starting water droplets
         inventorySeeds: 0,
         activeForest: [],
         actionsLogged: data.actions_logged || 0,
@@ -209,6 +223,8 @@ export const storage = {
         customSquadName: null,
         customSquadCode: null,
         isEsgAdmin: false,
+        weeklyActionLog: {},
+        lastWeekKey: null,
       };
 
       await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(userData));
@@ -280,11 +296,23 @@ export const storage = {
       if (data.customSquadName === undefined) data.customSquadName = null;
       if (data.customSquadCode === undefined) data.customSquadCode = null;
       if (data.isEsgAdmin === undefined) data.isEsgAdmin = false;
+      if (!data.weeklyActionLog) data.weeklyActionLog = {};
+      if (data.lastWeekKey === undefined) data.lastWeekKey = null;
 
       // Game Engine Loop: Calculate withering based on time passed
       const now = new Date();
       let hasChanges = false;
+
+      // Reset weekly log on new week
+      const currentWeekKey = getWeekKey();
+      if (data.lastWeekKey !== currentWeekKey) {
+        data.weeklyActionLog = {};
+        data.lastWeekKey = currentWeekKey;
+        hasChanges = true;
+      }
+
       data.activeForest = data.activeForest.map(plant => {
+
         if (plant.stage === 'withered') return plant; // Already dead
         const lastW = new Date(plant.lastWatered);
         const hoursPassed = Math.abs(now.getTime() - lastW.getTime()) / (1000 * 60 * 60);
@@ -310,9 +338,11 @@ export const storage = {
           hasChanges = true;
         }
         
-        // Reset streak if a day was missed
+        // Reset streak if a day was missed (more than 1 day gap)
         if (data.lastLogDate !== null && data.lastLogDate !== getPreviousDay() && data.currentStreak > 0) {
           data.currentStreak = 0;
+          // FIX #2: Also reset lastLogDate so this block doesn't trigger again on next load
+          data.lastLogDate = today;
           hasChanges = true;
         }
       }
@@ -329,6 +359,7 @@ export const storage = {
   async addPoints(points: number, actionIds: string[]): Promise<UserData> {
     const data = await storage.getUserData();
     const today = getTodayString();
+    const weekKey = getWeekKey();
     
     // Update streak
     if (data.lastLogDate === today) {
@@ -336,11 +367,9 @@ export const storage = {
     } else if (data.lastLogDate === getPreviousDay()) {
       // Consecutive day
       data.currentStreak += 1;
-    } else if (data.lastLogDate === null || data.lastLogDate !== today) {
-      // Missed a day or first time
-      if (data.lastLogDate !== today) {
-        data.currentStreak = 1;
-      }
+    } else {
+      // Missed a day or first time logging
+      data.currentStreak = 1;
     }
 
     // Track longest streak
@@ -355,6 +384,16 @@ export const storage = {
     data.actionsLogged += actionIds.length;
     data.lastLogDate = today;
     data.todayActions = [...new Set([...data.todayActions, ...actionIds])];
+
+    // FIX #5: Track which days each action was logged this week
+    if (!data.weeklyActionLog[weekKey]) data.weeklyActionLog[weekKey] = {};
+    for (const id of actionIds) {
+      if (!data.weeklyActionLog[weekKey][id]) data.weeklyActionLog[weekKey][id] = [];
+      if (!data.weeklyActionLog[weekKey][id].includes(today)) {
+        data.weeklyActionLog[weekKey][id].push(today);
+      }
+    }
+    data.lastWeekKey = weekKey;
 
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
 
@@ -549,6 +588,7 @@ export const storage = {
 
   // --- Sign Out ---
   async signOut(): Promise<void> {
+    // FIX #14: Also clear IS_PREMIUM and CUSTOM_AVATAR so next user doesn't inherit them
     await AsyncStorage.multiRemove([
       KEYS.AUTHENTICATED,
       KEYS.USER_NAME,
@@ -559,6 +599,8 @@ export const storage = {
       KEYS.JOIN_DATE,
       KEYS.ACTION_COUNTS,
       KEYS.SUPABASE_META,
+      KEYS.IS_PREMIUM,
+      KEYS.CUSTOM_AVATAR,
     ]);
   },
 

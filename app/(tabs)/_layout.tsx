@@ -8,7 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const TAB_ITEMS = [
   { name: 'index', title: 'Home', icon: 'home' as const, iconOutline: 'home-outline' as const },
   { name: 'log', title: 'Log', icon: 'add-circle' as const, iconOutline: 'add-circle-outline' as const },
-  { name: 'forests', title: 'Forests', icon: 'people' as const, iconOutline: 'people-outline' as const },
+  // FIX #15: Changed from 'people' to 'leaf' — a leaf better represents community forests
+  { name: 'forests', title: 'Forests', icon: 'leaf' as const, iconOutline: 'leaf-outline' as const },
   { name: 'achievements', title: 'Badges', icon: 'trophy' as const, iconOutline: 'trophy-outline' as const },
   { name: 'profile', title: 'Profile', icon: 'person' as const, iconOutline: 'person-outline' as const },
 ];

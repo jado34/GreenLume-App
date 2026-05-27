@@ -50,9 +50,9 @@ export default function RootLayout() {
         Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
         let apiKey = '';
         if (Platform.OS === 'ios') {
-          apiKey = 'ios_key_placeholder'; // Replace with actual iOS key from RevenueCat
+          apiKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY || '';
         } else if (Platform.OS === 'android') {
-          apiKey = 'test_CrkqNHkdRhDDIGdqRjldriHDEaK'; 
+          apiKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || ''; 
         }
         
         if (apiKey) {

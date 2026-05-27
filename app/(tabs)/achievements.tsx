@@ -102,8 +102,8 @@ export default function AchievementsScreen() {
                   <View 
                     key={level.name} 
                     style={styles.levelItem}
+                    // FIX #27: Level bubbles are status indicators, not navigation headers
                     accessibilityLabel={`Level: ${level.name}. Requirement: ${level.pts} points. ${unlocked ? 'Unlocked' : 'Locked'}`}
-                    accessibilityRole="header"
                   >
                     {i > 0 && (
                       <View style={[styles.levelConnector, unlocked && { backgroundColor: level.color }]} />
@@ -183,9 +183,17 @@ export default function AchievementsScreen() {
                   {!isEarned && userData && (
                     <View style={styles.modalProgressWrap}>
                       <Text style={styles.modalProgressText}>{selectedBadge.progressText(userData, actionCounts)}</Text>
-                      <View style={styles.progressTrack}>
-                        <View style={[styles.progressFill, { width: '40%', backgroundColor: selectedBadge.color }]} />
-                      </View>
+                      {/* FIX #19: Calculate actual badge progress percentage from progressText data */}
+                      {(() => {
+                        const txt = selectedBadge.progressText(userData, actionCounts);
+                        const match = txt.match(/(\d+).*?(\d+)/);
+                        const pct = match ? Math.min(100, Math.round((parseInt(match[1]) / parseInt(match[2])) * 100)) : 0;
+                        return (
+                          <View style={styles.progressTrack}>
+                            <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: selectedBadge.color }]} />
+                          </View>
+                        );
+                      })()}
                     </View>
                   )}
                   <Text style={[styles.modalPts, { color: selectedBadge.color }]}>+{selectedBadge.points} bonus points</Text>

@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Dimensions, RefreshControl, Modal, Pressable, Image
+  Animated, Dimensions, RefreshControl, Modal, Pressable, Image, ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -107,10 +107,12 @@ export default function HomeScreen() {
     Toast.show({ type: 'success', text1: `+${action.points} pts! 🎉`, text2: `${action.name} logged. Keep it up!` });
   };
 
-  const getWeekProgress = (actionKey: string) => {
+  const getWeekProgress = (actionKey: string): number => {
     if (!userData) return 0;
-    // Only count 1 if the specific action was logged today
-    return todayLogged.has(actionKey) ? 1 : 0;
+    // FIX #5: Count distinct days this week the action was logged
+    const weekKey = userData.lastWeekKey;
+    if (!weekKey || !userData.weeklyActionLog?.[weekKey]?.[actionKey]) return 0;
+    return userData.weeklyActionLog[weekKey][actionKey].length;
   };
 
   const points = userData?.todayPoints ?? 0;
@@ -120,6 +122,16 @@ export default function HomeScreen() {
   const avatarColor = getAvatarColor(userName || 'G');
 
   const theme = getDynamicTheme(points);
+
+  // FIX #31: Show loading indicator while data is first loading
+  if (!userData) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={{ fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm, color: Colors.textMuted, marginTop: 12 }}>Loading your dashboard...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -182,8 +194,10 @@ export default function HomeScreen() {
           {needsWaterNudge && (
             <TouchableOpacity 
               style={{ marginHorizontal: 20, marginTop: 24, backgroundColor: '#fef2f2', borderColor: '#ef4444', borderWidth: 2, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#ef4444', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 }}
-              onPress={() => router.push('/impact-map')}
+              onPress={() => router.push('/nursery' as any)}
               activeOpacity={0.9}
+              accessibilityLabel="Emergency: Plants need watering. Tap to go to your nursery."
+              accessibilityRole="alert"
             >
               <Text style={{ fontSize: 36, marginRight: 14 }}>🚨</Text>
               <View style={{ flex: 1 }}>
@@ -291,19 +305,19 @@ export default function HomeScreen() {
           <View style={[styles.section, { marginBottom: 24 }]}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Your Impact This Week</Text>
-              <TouchableOpacity onPress={() => router.push('/impact-map')}>
+              <TouchableOpacity onPress={() => router.push('/nursery' as any)}>
                 <Text style={styles.seeAll}>View Forest 🌲</Text>
               </TouchableOpacity>
             </View>
             <TouchableOpacity 
               style={styles.impactRow} 
-              onPress={() => router.push('/impact-map')}
+              onPress={() => router.push('/nursery' as any)}
               activeOpacity={0.9}
             >
               {[
                 { icon: 'cloud-outline', label: 'CO₂ Saved', value: `${((points / 100) * 0.8).toFixed(1)}kg`, color: '#10b981' },
                 { icon: 'water-outline', label: 'Water Saved', value: `${Math.floor(points * 0.5)}L`, color: '#06b6d4' },
-                { icon: 'refresh-circle-outline', label: 'Plastic Avoided', value: `${Math.floor(actionsCount * 0.3)} items`, color: '#8b5cf6' },
+                { icon: 'refresh-circle-outline', label: 'Plastic Avoided', value: `${Math.floor(actionsLogged * 0.3)} items`, color: '#8b5cf6' },
               ].map((item) => (
                 <View key={item.label} style={styles.impactCard}>
                   <Ionicons name={item.icon as any} size={22} color={item.color} />
@@ -328,7 +342,13 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
             {NOTIFICATIONS.map((n, i) => (
-              <TouchableOpacity key={n.id} style={[styles.notifItem, i < NOTIFICATIONS.length - 1 && styles.notifItemBorder]} activeOpacity={0.7}>
+              <TouchableOpacity
+                key={n.id}
+                style={[styles.notifItem, i < NOTIFICATIONS.length - 1 && styles.notifItemBorder]}
+                activeOpacity={0.7}
+                accessibilityLabel={`${n.title}: ${n.body}. ${n.time}`}
+                accessibilityRole="button"
+              >
                 <View style={styles.notifIconWrap}>
                   <Text style={{ fontSize: 22 }}>{n.icon}</Text>
                 </View>
@@ -365,7 +385,8 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.25)' },
   section: { paddingHorizontal: 20, paddingTop: 24 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  sectionTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.xl, color: Colors.textPrimary, marginBottom: 14 },
+  // FIX #16: Remove marginBottom from sectionTitle to avoid double spacing when inside sectionHeader
+  sectionTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.xl, color: Colors.textPrimary },
   seeAll: { fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm, color: Colors.primary },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   quickCard: {

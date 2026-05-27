@@ -29,6 +29,8 @@ export default function AICoachScreen() {
   const [localContext, setLocalContext] = useState<LocalContext | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
+  // FIX #4: Use a ref to track if the greeting has fired, so re-visits don't reset it
+  const greetingFiredRef = useRef(false);
 
   const updateFreeTipMutation = useMutation({
     mutationFn: async () => {
@@ -73,7 +75,9 @@ export default function AICoachScreen() {
           useNativeDriver: true,
         }).start();
 
-        if (messages.length === 0) {
+        // FIX #4: Only send greeting once per mount using a ref flag
+        if (!greetingFiredRef.current) {
+          greetingFiredRef.current = true;
           let greeting = "Hi there! I'm your Earth+ Eco-Coach. I've been analyzing your recent activity.\n\n";
           
           if (ctx) {
@@ -88,29 +92,29 @@ export default function AICoachScreen() {
             }
           }
         
-        if (userData.currentStreak > 2) {
-          greeting += `🔥 Incredible ${userData.currentStreak}-day streak! Consistency is the hardest part of sustainability, and you are crushing it. `;
-        } else if (userData.actionsLogged > 0) {
-          greeting += `I see you've logged ${userData.actionsLogged} total actions so far. Great start! `;
-        } else {
-          greeting += `You haven't logged any actions today yet. Let's get started on saving the planet! `;
+          if (userData.currentStreak > 2) {
+            greeting += `🔥 Incredible ${userData.currentStreak}-day streak! Consistency is the hardest part of sustainability, and you are crushing it. `;
+          } else if (userData.actionsLogged > 0) {
+            greeting += `I see you've logged ${userData.actionsLogged} total actions so far. Great start! `;
+          } else {
+            greeting += `You haven't logged any actions today yet. Let's get started on saving the planet! `;
+          }
+
+          if (userData.totalPoints > 500) {
+            greeting += `With ${userData.totalPoints} GreenLume points, your carbon offset is mathematically outperforming 85% of other users in your region. \n\n`;
+          } else {
+            greeting += `Every point counts. You have ${userData.totalPoints} points, which is a solid foundation. \n\n`;
+          }
+
+          greeting += `💡 **My Daily Insight for you:**\nBased on your profile, you could easily double your impact this week by focusing on "Zero Plastic". Try bringing a reusable cup to your local coffee shop tomorrow—it saves about 0.05kg of CO₂ per cup!`;
+
+          // Start typewriter stream for first message
+          streamMessage(greeting);
         }
-
-        if (userData.totalPoints > 500) {
-          greeting += `With ${userData.totalPoints} GreenLume points, your carbon offset is mathematically outperforming 85% of other users in your region. \n\n`;
-        } else {
-          greeting += `Every point counts. You have ${userData.totalPoints} points, which is a solid foundation. \n\n`;
-        }
-
-        greeting += `💡 **My Daily Insight for you:**\nBased on your profile, you could easily double your impact this week by focusing on "Zero Plastic". Try bringing a reusable cup to your local coffee shop tomorrow—it saves about 0.05kg of CO₂ per cup!`;
-
-        // Start typewriter stream for first message
-        streamMessage(greeting);
-      }
-    };
+      };
     
-    loadContextAndGreet();
-  }, [userData?.isPremium, userData?.lastFreeCoachTipDate])
+      loadContextAndGreet();
+    }, [userData?.isPremium, userData?.lastFreeCoachTipDate])
   );
 
   // Typewriter effect generator
@@ -325,28 +329,45 @@ export default function AICoachScreen() {
 
       {/* Input area */}
       <View style={styles.inputArea}>
-        <View style={[styles.inputBox, showPaywall && { opacity: 0.6 }]}>
-          <TextInput
-            style={styles.textInput}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder={showPaywall ? "Upgrade to chat with AI Coach..." : "Ask your Eco-Coach a question..."}
-            placeholderTextColor={Colors.textMuted}
-            editable={!showPaywall && !isAiResponding}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-          />
-          <TouchableOpacity 
-            onPress={handleSend}
-            disabled={showPaywall || isAiResponding || !inputText.trim()}
+        {/* FIX #32: Overlay to make the paywall state unmistakably clear */}
+        {showPaywall ? (
+          <TouchableOpacity
+            style={[styles.inputBox, { backgroundColor: '#fef3c7', borderColor: '#f59e0b', justifyContent: 'center', alignItems: 'center', paddingVertical: 16 }]}
+            onPress={() => router.push('/premium')}
+            accessibilityLabel="Upgrade to Earth+ to send unlimited messages"
+            accessibilityRole="button"
           >
-            <Ionicons 
-              name="send" 
-              size={20} 
-              color={showPaywall || !inputText.trim() || isAiResponding ? Colors.neutral300 : Colors.primary} 
-            />
+            <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.sm, color: '#d97706' }}>
+              🔒 Upgrade to Earth+ to continue
+            </Text>
           </TouchableOpacity>
-        </View>
+        ) : (
+          <View style={styles.inputBox}>
+            <TextInput
+              style={styles.textInput}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Ask your Eco-Coach a question..."
+              placeholderTextColor={Colors.textMuted}
+              editable={!isAiResponding}
+              onSubmitEditing={handleSend}
+              returnKeyType="send"
+              accessibilityLabel="Message input"
+            />
+            <TouchableOpacity 
+              onPress={handleSend}
+              disabled={isAiResponding || !inputText.trim()}
+              accessibilityLabel="Send message"
+              accessibilityRole="button"
+            >
+              <Ionicons 
+                name="send" 
+                size={20} 
+                color={!inputText.trim() || isAiResponding ? Colors.neutral300 : Colors.primary} 
+              />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </KeyboardAvoidingView>
   );

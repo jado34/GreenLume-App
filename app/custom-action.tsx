@@ -173,6 +173,8 @@ export default function CustomActionScreen() {
             maxLength={100}
             textAlignVertical="top"
           />
+          {/* FIX #21: Add character counter for description field to match name field UX */}
+          <Text style={styles.charCount}>{description.length}/100</Text>
 
           <Text style={styles.formLabel}>Category</Text>
           <View style={styles.categoryGrid}>
@@ -211,10 +213,16 @@ export default function CustomActionScreen() {
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* View saved actions */}
-          <TouchableOpacity style={styles.viewSavedBtn} onPress={loadSaved} activeOpacity={0.8}>
-            <Ionicons name="list" size={18} color={Colors.primary} />
-            <Text style={styles.viewSavedText}>View My Custom Actions</Text>
+          {/* FIX #36: Toggle show/hide saved actions list */}
+          <TouchableOpacity style={styles.viewSavedBtn} onPress={() => {
+            if (!showSaved) {
+              loadSaved();
+            } else {
+              setShowSaved(false);
+            }
+          }} activeOpacity={0.8}>
+            <Ionicons name={showSaved ? 'chevron-up' : 'list'} size={18} color={Colors.primary} />
+            <Text style={styles.viewSavedText}>{showSaved ? 'Hide Custom Actions' : 'View My Custom Actions'}</Text>
           </TouchableOpacity>
         </View>
 

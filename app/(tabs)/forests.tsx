@@ -38,6 +38,7 @@ export default function ForestsScreen() {
           <Text style={styles.headerTitle}>Community Forests</Text>
           <Text style={styles.headerSub}>Join forces and grow together</Text>
           
+          {/* FIX #12: Mark global stats as placeholder until real data is connected */}
           <View style={styles.globalStats}>
             <View style={styles.globalStatItem}>
               <Text style={styles.globalStatVal}>125k</Text>
@@ -49,6 +50,7 @@ export default function ForestsScreen() {
               <Text style={styles.globalStatLab}>Trees Saved</Text>
             </View>
           </View>
+          <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginTop: 6 }}>Live data coming soon</Text>
         </LinearGradient>
 
         {/* My Forest (Selection) */}
@@ -97,7 +99,7 @@ export default function ForestsScreen() {
             <View style={styles.bannerContent}>
               <Text style={styles.bannerTitle}>Planetary Pulse 🌍</Text>
               <Text style={styles.bannerText}>Today, the GreenLume community avoided 4,200kg of CO₂.</Text>
-              <TouchableOpacity style={styles.bannerBtn} onPress={() => router.push('/impact-map')}>
+              <TouchableOpacity style={styles.bannerBtn} onPress={() => router.push('/nursery' as any)}>
                 <Text style={styles.bannerBtnText}>View My Contribution</Text>
                 <Ionicons name="arrow-forward" size={16} color={Colors.white} />
               </TouchableOpacity>

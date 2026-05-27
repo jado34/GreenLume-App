@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView } from
 import { router } from 'expo-router';
 import LottieView from 'lottie-react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { storage } from '../utils/storage';
 import { Colors } from '../constants/colors';
 import { Typography, Shadows } from '../constants/typography';
@@ -36,14 +37,18 @@ export default function OnboardingScreen() {
   const scrollRef = useRef<ScrollView>(null);
 
   const goToSlide = (index: number) => {
+    // FIX #33: Add haptic feedback for slide navigation
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCurrentIndex(index);
     scrollRef.current?.scrollTo({ x: index * width, animated: true });
   };
 
   const handleNext = async () => {
     if (currentIndex < SLIDES.length - 1) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       goToSlide(currentIndex + 1);
     } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await storage.setOnboardingDone();
       router.replace('/(tabs)');
     }
@@ -64,12 +69,13 @@ export default function OnboardingScreen() {
       {/* Background tint per slide */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: SLIDES[currentIndex].bg }]} />
 
-      {/* Back button */}
+      {/* Back button — FIX #18: On first slide, go to /auth not /(tabs) */}
       <TouchableOpacity style={styles.backButton} onPress={() => {
-        if (router.canGoBack()) {
-          router.back();
+        if (currentIndex > 0) {
+          goToSlide(currentIndex - 1);
         } else {
-          router.replace('/(tabs)');
+          // First slide: go back to auth instead of bypassing auth wall
+          router.replace('/auth');
         }
       }} activeOpacity={0.7}>
         <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />

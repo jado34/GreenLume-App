@@ -290,9 +290,10 @@ export default function LogActionsScreen() {
               ]}
               onPress={() => toggleAction(action.id)}
               activeOpacity={0.85}
-              accessibilityLabel={`${action.name}: ${action.description}. ${action.points} points. ${isDone ? 'Already logged today' : isPending ? 'Selected' : 'Tap to select'}`}
+              accessibilityLabel={`${action.name}: ${action.description}. ${action.points} points. ${isDone ? 'Already logged today, tap to undo' : isPending ? 'Selected' : 'Tap to select'}`}
               accessibilityRole="checkbox"
-              accessibilityState={{ checked: isPending || isDone, disabled: isDone }}
+              // FIX #25: Remove disabled:true when isDone — done items are still tappable for undo
+              accessibilityState={{ checked: isPending || isDone }}
             >
               <View style={[styles.actionIcon, { backgroundColor: `${catColor}20` }]}>
                 <Ionicons name={action.icon as any} size={22} color={catColor} />
@@ -407,8 +408,9 @@ export default function LogActionsScreen() {
                 </View>
 
                 <View style={styles.btnGroupVertical}>
+                  {/* FIX #34: Use amber color for premium upgrade CTA to match app-wide premium language */}
                   <TouchableOpacity 
-                    style={[styles.primaryBtn, { backgroundColor: '#10b981' }]} 
+                    style={[styles.primaryBtn, { backgroundColor: '#f59e0b' }]} 
                     onPress={() => {
                       setShowVerifyModal(false);
                       router.push('/premium');
