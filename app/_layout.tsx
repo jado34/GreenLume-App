@@ -29,6 +29,8 @@ import { supabase, isSupabaseConfigured } from '../utils/supabase';
 import { storage } from '../utils/storage';
 import { notifications } from '../utils/notifications';
 import { queryClient, asyncStoragePersister } from '../utils/queryClient';
+import { PostHogProvider } from 'posthog-react-native';
+import { posthog, analytics } from '../utils/analytics';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -74,13 +76,15 @@ export default function RootLayout() {
       async (event, session) => {
         console.log('[Supabase Auth]', event, session?.user?.email);
 
-        if (event === 'SIGNED_IN' && session?.user) {
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
           const user = session.user;
           const displayName =
             user.user_metadata?.full_name ||
             user.user_metadata?.name ||
             user.email ||
             'User';
+          
+          analytics.identify(user.id, { email: user.email, name: displayName });
           const provider =
             user.app_metadata?.provider || 'supabase';
 
@@ -92,6 +96,17 @@ export default function RootLayout() {
           });
 
           await storage.restoreFromSupabase();
+
+          // Auto-upgrade developer account to Premium in the database
+          if (user.email === 'olawuwoadegoke16@gmail.com') {
+            console.log('[Storage] Auto-upgrading owner account to Premium');
+            await storage.setPremium(true);
+            await storage.syncToSupabase();
+            
+            // Invalidate queries so that UI screens (like index.tsx, profile.tsx) update
+            const { USER_DATA_QUERY_KEY } = require('../hooks/useUserData');
+            queryClient.invalidateQueries({ queryKey: USER_DATA_QUERY_KEY });
+          }
           
           try {
             await Purchases.logIn(user.id);
@@ -104,6 +119,7 @@ export default function RootLayout() {
         }
 
         if (event === 'SIGNED_OUT') {
+          analytics.reset();
           await storage.signOut();
           try {
             await Purchases.logOut();
@@ -134,10 +150,11 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{ persister: asyncStoragePersister }}
-    >
+    <PostHogProvider client={posthog}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: asyncStoragePersister }}
+      >
       <SafeAreaProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <StatusBar style="light" />
@@ -160,5 +177,6 @@ export default function RootLayout() {
         </GestureHandlerRootView>
       </SafeAreaProvider>
     </PersistQueryClientProvider>
+    </PostHogProvider>
   );
 }

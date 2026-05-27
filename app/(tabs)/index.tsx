@@ -170,20 +170,24 @@ export default function HomeScreen() {
           <Text style={styles.greeting}>{getGreeting()}, {userName} 👋</Text>
 
           {/* Stats Card */}
-          <View style={[styles.statsCard, points >= 1000 && { shadowColor: theme.primary, shadowOpacity: 0.4, shadowRadius: 15, elevation: 12 }]}>
+          <View style={[
+            styles.statsCard, 
+            { backgroundColor: theme.statsCardBg },
+            points >= 1000 && { shadowColor: theme.primary, shadowOpacity: 0.4, shadowRadius: 15, elevation: 12 }
+          ]}>
             <View style={styles.statItem} accessibilityLabel={`${points} Green Score points today`}>
-              <Text style={styles.statNumber}>{points.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Today's{'\n'}Points</Text>
+              <Text style={[styles.statNumber, { color: theme.statsTextColor }]}>{points.toLocaleString()}</Text>
+              <Text style={[styles.statLabel, { color: theme.statsLabelColor }]}>Today's{'\n'}Points</Text>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: theme.statsDividerColor }]} />
             <View style={styles.statItem} accessibilityLabel={`${streak} day streak`}>
-              <Text style={styles.statNumber}>🔥 {streak}</Text>
-              <Text style={styles.statLabel}>Day Streak</Text>
+              <Text style={[styles.statNumber, { color: theme.statsTextColor }]}>🔥 {streak}</Text>
+              <Text style={[styles.statLabel, { color: theme.statsLabelColor }]}>Day Streak</Text>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: theme.statsDividerColor }]} />
             <View style={styles.statItem} accessibilityLabel={`${actionsLogged} Actions Taken today`}>
-              <Text style={styles.statNumber}>🍃 {actionsLogged}</Text>
-              <Text style={styles.statLabel}>Today's{'\n'}Actions</Text>
+              <Text style={[styles.statNumber, { color: theme.statsTextColor }]}>🍃 {actionsLogged}</Text>
+              <Text style={[styles.statLabel, { color: theme.statsLabelColor }]}>Today's{'\n'}Actions</Text>
             </View>
           </View>
         </LinearGradient>
@@ -381,7 +385,7 @@ const styles = StyleSheet.create({
   statsCard: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: 16, alignItems: 'center' },
   statItem: { flex: 1, alignItems: 'center' },
   statNumber: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize['2xl'], color: Colors.white },
-  statLabel: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  statLabel: { fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.xs, color: 'rgba(255, 255, 255, 0.95)', marginTop: 2, textAlign: 'center' },
   statDivider: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.25)' },
   section: { paddingHorizontal: 20, paddingTop: 24 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },

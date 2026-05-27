@@ -6,6 +6,7 @@ import LottieView from 'lottie-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { storage } from '../utils/storage';
+import { analytics } from '../utils/analytics';
 import { Colors } from '../constants/colors';
 import { Typography, Shadows } from '../constants/typography';
 
@@ -50,12 +51,14 @@ export default function OnboardingScreen() {
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await storage.setOnboardingDone();
+      analytics.track('onboarding_completed');
       router.replace('/(tabs)');
     }
   };
 
   const handleSkip = async () => {
     await storage.setOnboardingDone();
+    analytics.track('onboarding_skipped');
     router.replace('/(tabs)');
   };
 

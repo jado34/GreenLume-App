@@ -1,5 +1,6 @@
-// GreenLume Typography System
+import { TypographyStyles } from './design-tokens';
 
+// GreenLume Typography System mapped to brand Design Tokens
 export const Typography = {
   // Font Family
   fontFamily: {
@@ -10,23 +11,23 @@ export const Typography = {
     extraBold: 'PlusJakartaSans_800ExtraBold',
   },
 
-  // Font Sizes
+  // Font Sizes mapped to new tokens
   fontSize: {
-    xs: 11,
-    sm: 12,
-    base: 14,
-    md: 15,
-    lg: 16,
-    xl: 18,
-    '2xl': 20,
-    '3xl': 24,
-    '4xl': 28,
-    '5xl': 32,
-    '6xl': 40,
-    '7xl': 48,
+    xs: TypographyStyles.textXs.regular.fontSize,       // 12px
+    sm: TypographyStyles.textXs.regular.fontSize,       // 12px
+    base: TypographyStyles.textSm.regular.fontSize,     // 14px
+    md: TypographyStyles.textSm.regular.fontSize,       // 14px
+    lg: TypographyStyles.textMd.regular.fontSize,       // 16px
+    xl: TypographyStyles.textLg.regular.fontSize,       // 18px
+    '2xl': TypographyStyles.textXl.regular.fontSize,     // 20px
+    '3xl': TypographyStyles.textXl.regular.fontSize,     // 20px
+    '4xl': TypographyStyles.displaySm.regular.fontSize,  // 30px
+    '5xl': TypographyStyles.displaySm.regular.fontSize,  // 30px
+    '6xl': TypographyStyles.displayMd.regular.fontSize,  // 36px
+    '7xl': TypographyStyles.displayLg.regular.fontSize,  // 48px
   },
 
-  // Line Heights
+  // Line Heights (using multipliers from brand token ratios)
   lineHeight: {
     tight: 1.2,
     normal: 1.5,

@@ -95,6 +95,8 @@ export const notifications = {
       if (!isEnabled) return;
 
       const time = await this.getReminderTime();
+      
+      // 1. Standard daily reminder (custom time)
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "Time to log your impact! 🌍",
@@ -106,8 +108,47 @@ export const notifications = {
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
         },
       });
+
+      // 2. Sunny afternoon reminder at 3:00 PM
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Sunny afternoon? ☀️",
+          body: "Perfect time to cycle, walk, or dry your clothes outside to save energy! Log your actions today.",
+        },
+        trigger: {
+          hour: 15, // 3:00 PM
+          minute: 0,
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        },
+      });
+
+      // 3. Morning Commute reminder at 7:30 AM (Week One Cliff / Cultural Relevance)
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Fuel is expensive! ⛽",
+          body: "Carpooling saves the planet and your wallet. Log your commute!",
+        },
+        trigger: {
+          hour: 7,
+          minute: 30,
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        },
+      });
+
+      // 4. Evening Power check-in at 8:00 PM (Cultural Relevance)
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Up NEPA! or No Light? 💡",
+          body: "Either way, turning off unused appliances saves energy and money. Log your habits!",
+        },
+        trigger: {
+          hour: 20, // 8:00 PM
+          minute: 0,
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        },
+      });
     } catch (err) {
-      console.error('Failed to schedule local notification:', err);
+      console.error('Failed to schedule local notifications:', err);
     }
   },
 

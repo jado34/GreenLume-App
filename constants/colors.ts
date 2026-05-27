@@ -1,52 +1,53 @@
-// GreenLume Color System — Nature-Inspired Palette
+import { PrimitiveColors, ColorRoles } from './design-tokens';
 
+// GreenLume Color System — Nature-Inspired Palette mapped to brand Design Tokens
 export const Colors = {
   // Primary Brand Colors
-  primary: '#2e7d32',       // Deep Forest Green
-  primaryDark: '#1b5e20',   // Darker green
-  primaryLight: '#66bb6a',  // Light Green
-  accent: '#a5d6a7',        // Soft Mint Green
+  primary: ColorRoles.primaryColor.primaryColorRole,             // New brand primary green (#37953c)
+  primaryDark: ColorRoles.primaryColor.onPrimaryColorRole,       // Darker brand green (#29702d)
+  primaryLight: PrimitiveColors.palette.primary.primary60,       // Medium brand green (#6ac86f)
+  accent: ColorRoles.accentColor.accentContainerColorRole,       // Brand light accent (#e5ff99)
 
   // Background Shades
-  primary95: '#f1f8f4',     // Very Light Green Background
-  primary90: '#e8f5e9',     // Light green tint
+  primary95: PrimitiveColors.palette.primary.primary95,          // Very Light Green Background (#ecf8ed)
+  primary90: ColorRoles.primaryColor.primaryContainerRole,       // Light green tint (#daf1db)
 
   // Neutral colors
-  white: '#ffffff',
-  neutral50: '#f5f5f5',
-  neutral100: '#f0f0f0',
-  neutral200: '#e0e0e0',
-  neutral300: '#bdbdbd',
-  neutral400: '#9e9e9e',
+  white: PrimitiveColors.palette.neutral.neutral100,             // #ffffff
+  neutral50: PrimitiveColors.palette.neutral.neutral98,          // #fafafa
+  neutral100: PrimitiveColors.palette.neutral.neutral95,         // #f2f2f2
+  neutral200: PrimitiveColors.palette.neutral.neutral90,         // #e6e6e6
+  neutral300: PrimitiveColors.palette.neutral.neutral80,         // #cccccc
+  neutral400: PrimitiveColors.palette.neutral.neutral70,         // #b3b3b3
 
   // Text
-  textPrimary: '#1a1a1a',
-  textSecondary: '#5a5a5a',
-  textMuted: '#999999',
-  textWhite: '#ffffff',
+  textPrimary: ColorRoles.neutralColor.nuetralColorRole,          // #4c4c4c
+  textSecondary: PrimitiveColors.palette.neutral.neutral50,      // #808080
+  textMuted: PrimitiveColors.palette.neutral.neutral60,          // #999999
+  textWhite: PrimitiveColors.palette.neutral.neutral100,         // #ffffff
 
   // Status Colors
-  success: '#4caf50',
-  successLight: '#e8f5e9',
-  warning: '#ff9800',
-  warningLight: '#fff8e1',
-  error: '#f44336',
-  errorLight: '#ffebee',
-  info: '#2196f3',
+  success: ColorRoles.successColor.successColorRole,             // Brand success green (#00993f)
+  successLight: PrimitiveColors.palette.success.success95,       // Light green tint (#e5fff0)
+  warning: ColorRoles.warningColor.warningColorRole,             // Brand warning gold (#ffbf00)
+  warningLight: PrimitiveColors.palette.warning.warning95,       // Light gold tint (#fff9e5)
+  error: ColorRoles.errorColor.errorColorRole,                   // Brand error red (#b51b17)
+  errorLight: PrimitiveColors.palette.error.error95,             // Light red tint (#fce9e8)
+  info: '#2196f3',                                               // Fallback blue
   infoLight: '#e3f2fd',
 
   // Category Colors
   transport: '#3b82f6',     // Blue
-  food: '#10b981',          // Emerald
+  food: ColorRoles.successColor.successColorRole,                // Brand success green
   waste: '#8b5cf6',         // Purple
-  energy: '#f59e0b',        // Amber
+  energy: ColorRoles.warningColor.warningColorRole,              // Brand warning gold
   water: '#06b6d4',         // Cyan
   shopping: '#ec4899',      // Pink
 
   // Rank / Level Colors
   rankStarter: '#84cc16',   // Lime green
-  rankWarrior: '#22c55e',   // Green
-  rankHero: '#16a34a',      // Forest green
+  rankWarrior: ColorRoles.successColor.successColorRole,
+  rankHero: ColorRoles.primaryColor.primaryColorRole,
   rankGuardian: '#3b82f6',  // Blue
   rankLegend: '#8b5cf6',    // Purple
 
@@ -55,24 +56,24 @@ export const Colors = {
   glassBorder: 'rgba(255, 255, 255, 0.25)',
 
   // Chart Colors
-  chartGreen: '#2e7d32',
+  chartGreen: ColorRoles.primaryColor.primaryColorRole,
   chartBlue: '#3b82f6',
-  chartOrange: '#f59e0b',
+  chartOrange: ColorRoles.warningColor.warningColorRole,
   chartPurple: '#8b5cf6',
-  chartEmerald: '#10b981',
-  chartRed: '#ef4444',
+  chartEmerald: ColorRoles.successColor.successColorRole,
+  chartRed: ColorRoles.errorColor.errorColorRole,
 } as const;
 
 // Gradient presets
 export const Gradients = {
-  primary: ['#2e7d32', '#66bb6a'] as const,
-  primaryDark: ['#1b5e20', '#2e7d32'] as const,
-  card: ['#f1f8f4', '#e8f5e9'] as const,
+  primary: [ColorRoles.primaryColor.primaryColorRole, PrimitiveColors.palette.primary.primary60] as const,
+  primaryDark: [ColorRoles.primaryColor.onPrimaryColorRole, ColorRoles.primaryColor.primaryColorRole] as const,
+  card: [PrimitiveColors.palette.primary.primary95, ColorRoles.primaryColor.primaryContainerRole] as const,
   rankStarter: ['#84cc16', '#65a30d'] as const,
-  rankWarrior: ['#22c55e', '#16a34a'] as const,
-  rankHero: ['#166534', '#15803d'] as const,
+  rankWarrior: [ColorRoles.successColor.successColorRole, ColorRoles.primaryColor.primaryColorRole] as const,
+  rankHero: [ColorRoles.primaryColor.onPrimaryColorRole, ColorRoles.primaryColor.primaryColorRole] as const,
   rankGuardian: ['#1d4ed8', '#3b82f6'] as const,
   rankLegend: ['#6d28d9', '#8b5cf6'] as const,
   premium: ['#0f172a', '#1e293b', '#334155'] as const,
-  gold: ['#fbbf24', '#f59e0b'] as const,
+  gold: [ColorRoles.warningColor.warningColorRole, ColorRoles.warningColor.warningContainerColorRole] as const,
 } as const;

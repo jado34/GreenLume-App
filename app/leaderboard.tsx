@@ -54,6 +54,7 @@ const DEFAULT_GLOBAL_MOCK: LeaderboardEntry[] = [
 export default function LeaderboardScreen() {
   const [activeTab, setActiveTab] = useState<'global' | 'company' | 'squad'>('global');
   const [globalEntries, setGlobalEntries] = useState<LeaderboardEntry[]>([]);
+  const [squadEntries, setSquadEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [userName, setUserName] = useState('');
@@ -86,6 +87,32 @@ export default function LeaderboardScreen() {
       Toast.show({ type: 'error', text1: 'Failed to load leaderboard' });
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const fetchSquadLeaderboard = useCallback(async (code: string) => {
+    if (!isSupabaseConfigured()) {
+      setSquadEntries([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('leaderboard')
+        .select('display_name, total_points, current_streak, avatar_color')
+        .eq('raw_user_data->userData->>customSquadCode', code)
+        .order('total_points', { ascending: false });
+
+      if (error) throw error;
+
+      const ranked = (data || []).map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+      })) as LeaderboardEntry[];
+
+      setSquadEntries(ranked);
+    } catch (err) {
+      console.error('Squad leaderboard error:', err);
     }
   }, []);
 
@@ -124,11 +151,14 @@ export default function LeaderboardScreen() {
         await syncLeaderboardSilently(data, name);
       }
       await fetchGlobalLeaderboard();
+      if (data?.customSquadCode) {
+        await fetchSquadLeaderboard(data.customSquadCode);
+      }
     };
 
     setLoading(true);
     init();
-  }, [fetchGlobalLeaderboard]));
+  }, [fetchGlobalLeaderboard, fetchSquadLeaderboard]));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -143,6 +173,9 @@ export default function LeaderboardScreen() {
       await syncLeaderboardSilently(data, name);
     }
     await fetchGlobalLeaderboard();
+    if (data?.customSquadCode) {
+      await fetchSquadLeaderboard(data.customSquadCode);
+    }
     setRefreshing(false);
   };
 
@@ -185,12 +218,14 @@ export default function LeaderboardScreen() {
 
     if (activeTab === 'squad') {
       const squad = userData.customSquadName;
-      if (!squad || !userData.isPremium) return [];
+      if (!squad) return [];
+
+      const inList = squadEntries.some(e => e.display_name === userName);
+      if (inList) return squadEntries;
 
       const list = [
-        { display_name: 'Sarah T. (Pending)', total_points: 0, current_streak: 0, avatar_color: '#9e9e9e' },
-        { display_name: 'Dave M.', total_points: userPoints > 1000 ? Math.floor(userPoints * 0.8) : 800, current_streak: Math.max(1, userStreak - 2), avatar_color: '#3b82f6' },
-        { display_name: userName, total_points: userPoints, current_streak: userStreak, avatar_color: userAvatarColor }
+        ...squadEntries,
+        { rank: 99, display_name: userName, total_points: userPoints, current_streak: userStreak, avatar_color: userAvatarColor }
       ];
       return list
         .sort((a, b) => b.total_points - a.total_points)
@@ -198,7 +233,7 @@ export default function LeaderboardScreen() {
     }
 
     return [];
-  }, [activeTab, globalEntries, userData, userName]);
+  }, [activeTab, globalEntries, squadEntries, userData, userName]);
 
   const handleTabChange = (tab: 'global' | 'company' | 'squad') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -318,7 +353,7 @@ export default function LeaderboardScreen() {
               <Text style={styles.stateActionBtnText}>Join Company Team</Text>
             </TouchableOpacity>
           </View>
-        ) : activeTab === 'squad' && !userData?.isPremium ? (
+        ) : activeTab === 'squad' && !userData?.customSquadCode && !userData?.isPremium ? (
           /* Locked Premium State */
           <View style={styles.stateCard}>
             <LinearGradient colors={['#052008', '#0b390e']} style={styles.premiumLockGradient}>
@@ -338,7 +373,7 @@ export default function LeaderboardScreen() {
               </TouchableOpacity>
             </LinearGradient>
           </View>
-        ) : activeTab === 'squad' && userData?.isPremium && !userData?.customSquadName ? (
+        ) : activeTab === 'squad' && !userData?.customSquadCode && userData?.isPremium ? (
           /* Premium but no squad created */
           <View style={styles.stateCard}>
             <View style={[styles.stateIconContainer, { backgroundColor: 'rgba(14, 165, 233, 0.1)' }]}>

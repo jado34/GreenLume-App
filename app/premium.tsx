@@ -12,6 +12,7 @@ import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import Purchases from 'react-native-purchases';
 import { Colors } from '../constants/colors';
 import { Typography } from '../constants/typography';
+import { analytics } from '../utils/analytics';
 
 const PREMIUM_FEATURES = [
   {
@@ -69,6 +70,8 @@ export default function PremiumScreen() {
         useNativeDriver: true,
       }),
     ]).start();
+    
+    analytics.track('premium_paywall_viewed');
   }, []);
 
   const queryClient = useQueryClient();
@@ -98,6 +101,7 @@ export default function PremiumScreen() {
             position: 'top',
           });
 
+          analytics.track('premium_purchased');
           router.back();
         }
       }
@@ -166,7 +170,7 @@ export default function PremiumScreen() {
 
           {/* Pricing & CTA */}
           <View style={styles.pricingContainer}>
-            <Text style={styles.price}>$1.99 <Text style={styles.pricePeriod}>/ month</Text></Text>
+            <Text style={styles.price}>$2.99 <Text style={styles.pricePeriod}>/ month</Text></Text>
             <Text style={styles.cancelText}>Cancel anytime. Billed monthly.</Text>
             
             <TouchableOpacity style={styles.ctaButton} onPress={handleSubscribe} activeOpacity={0.9}>

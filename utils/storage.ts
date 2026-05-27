@@ -614,6 +614,14 @@ export const storage = {
     return data;
   },
 
+  async joinCustomSquad(name: string, code: string): Promise<UserData> {
+    const data = await this.getUserData();
+    data.customSquadName = name;
+    data.customSquadCode = code;
+    await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+    return data;
+  },
+
   async leaveCustomSquad(): Promise<UserData> {
     const data = await this.getUserData();
     data.customSquadName = null;

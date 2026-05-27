@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Share } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Share, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import * as Haptics from 'expo-haptics';
 import { useUserData, useJoinTeamMutation } from '../hooks/useUserData';
@@ -11,6 +11,7 @@ import { Typography, Shadows } from '../constants/typography';
 import { storage } from '../utils/storage';
 import { useQueryClient } from '@tanstack/react-query';
 import { USER_DATA_QUERY_KEY } from '../hooks/useUserData';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 const MOCK_TEAMS: Record<string, string> = {
   'GOOGLE': 'Google Inc.',
@@ -23,8 +24,54 @@ export default function TeamsScreen() {
   const { data: userData } = useUserData();
   const queryClient = useQueryClient();
   const joinTeamMutation = useJoinTeamMutation();
+  
   const [inviteCode, setInviteCode] = useState('');
   const [squadName, setSquadName] = useState('');
+  const [squadInviteCode, setSquadInviteCode] = useState('');
+  const [squadTab, setSquadTab] = useState<'create' | 'join'>('create');
+  
+  const [userName, setUserName] = useState('You');
+  const [userId, setUserId] = useState('');
+  const [squadMembers, setSquadMembers] = useState<any[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [joiningSquad, setJoiningSquad] = useState(false);
+
+  useEffect(() => {
+    storage.getUserName().then(setUserName);
+    storage.getUserId().then(setUserId);
+  }, []);
+
+  const fetchSquadMembers = useCallback(async (code: string) => {
+    if (!isSupabaseConfigured()) {
+      setSquadMembers([
+        { display_name: userName, total_points: userData?.totalPoints || 0, current_streak: userData?.currentStreak || 0, avatar_color: Colors.primary }
+      ]);
+      return;
+    }
+    setLoadingMembers(true);
+    try {
+      const { data, error } = await supabase
+        .from('leaderboard')
+        .select('user_id, display_name, total_points, current_streak, avatar_color')
+        .eq('raw_user_data->userData->>customSquadCode', code)
+        .order('total_points', { ascending: false });
+
+      if (error) throw error;
+      setSquadMembers(data || []);
+    } catch (err) {
+      console.error('[Teams] Error fetching squad members:', err);
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, [userData?.totalPoints, userData?.currentStreak, userName]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (userData?.customSquadCode) {
+        fetchSquadMembers(userData.customSquadCode);
+      }
+    }, [userData?.customSquadCode, fetchSquadMembers])
+  );
 
   const handleJoinTeam = () => {
     const code = inviteCode.trim().toUpperCase();
@@ -57,6 +104,7 @@ export default function TeamsScreen() {
       await storage.createCustomSquad(squadName.trim());
       setSquadName('');
       queryClient.invalidateQueries({ queryKey: USER_DATA_QUERY_KEY });
+      await storage.syncToSupabase();
       Toast.show({
         type: 'success',
         text1: 'Squad Created! 👥',
@@ -67,11 +115,74 @@ export default function TeamsScreen() {
     }
   };
 
+  const handleJoinSquad = async () => {
+    const code = squadInviteCode.trim().toUpperCase();
+    if (!code) return;
+
+    if (!isSupabaseConfigured()) {
+      Toast.show({
+        type: 'error',
+        text1: 'Database Offline',
+        text2: 'Custom squads require an active database connection.',
+      });
+      return;
+    }
+
+    setJoiningSquad(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const { data, error } = await supabase
+        .from('leaderboard')
+        .select('raw_user_data')
+        .eq('raw_user_data->userData->>customSquadCode', code)
+        .limit(1);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        Toast.show({
+          type: 'error',
+          text1: 'Invalid Invite Code',
+          text2: 'No squad was found matching this code.',
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return;
+      }
+
+      const raw = data[0].raw_user_data as any;
+      const squadName = raw?.userData?.customSquadName || 'Custom Squad';
+
+      await storage.joinCustomSquad(squadName, code);
+      queryClient.invalidateQueries({ queryKey: USER_DATA_QUERY_KEY });
+      await storage.syncToSupabase();
+
+      Toast.show({
+        type: 'success',
+        text1: `Joined ${squadName}! 👥`,
+        text2: 'You are now part of the squad.',
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSquadInviteCode('');
+    } catch (err) {
+      console.error('Error joining squad:', err);
+      Toast.show({
+        type: 'error',
+        text1: 'Join Failed',
+        text2: 'An error occurred while joining the squad.',
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setJoiningSquad(false);
+    }
+  };
+
   const handleLeaveSquad = async () => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       await storage.leaveCustomSquad();
       queryClient.invalidateQueries({ queryKey: USER_DATA_QUERY_KEY });
+      await storage.syncToSupabase();
       Toast.show({
         type: 'info',
         text1: 'Left squad',
@@ -203,33 +314,67 @@ export default function TeamsScreen() {
             <Text style={styles.sectionTitle}>Custom Squads</Text>
           </View>
           
-          {!isPremium ? (
-            /* Free tier lock screen */
-            <TouchableOpacity 
-              style={styles.lockedCard} 
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push('/premium');
-              }}
-              activeOpacity={0.9}
-            >
-              <LinearGradient colors={['#052008', '#0b390e']} style={styles.lockedGradient}>
-                <View style={styles.lockHeader}>
-                  <Ionicons name="lock-closed" size={22} color="#fbbf24" />
-                  <Text style={styles.lockedBadge}>Earth+ Feature</Text>
+          {!isPremium && !userData.customSquadCode ? (
+            /* Free tier lock screen + Join option */
+            <View style={{ gap: 16 }}>
+              <TouchableOpacity 
+                style={styles.lockedCard} 
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push('/premium');
+                }}
+                activeOpacity={0.9}
+              >
+                <LinearGradient colors={['#052008', '#0b390e']} style={styles.lockedGradient}>
+                  <View style={styles.lockHeader}>
+                    <Ionicons name="lock-closed" size={22} color="#fbbf24" />
+                    <Text style={styles.lockedBadge}>Earth+ Feature</Text>
+                  </View>
+                  <Text style={styles.lockedTitle}>Create a Custom Squad</Text>
+                  <Text style={styles.lockedDesc}>
+                    Upgrade to Earth+ Premium to create custom leaderboards, invite your friends, and compete in personal circles!
+                  </Text>
+                  <View style={styles.lockedBtn}>
+                    <Text style={styles.lockedBtnText}>Upgrade to Earth+ ($1.99/mo)</Text>
+                    <Ionicons name="arrow-forward" size={16} color="#052008" />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* Free Join Section */}
+              <View style={styles.createSquadCard}>
+                <View style={[styles.squadIconContainer, { backgroundColor: 'rgba(251, 191, 36, 0.1)' }]}>
+                  <Ionicons name="enter" size={36} color="#fbbf24" />
                 </View>
-                <Text style={styles.lockedTitle}>Create a Custom Squad</Text>
-                <Text style={styles.lockedDesc}>
-                  Upgrade to Earth+ Premium to create custom leaderboards, invite your friends, and compete in personal circles!
-                </Text>
-                <View style={styles.lockedBtn}>
-                  <Text style={styles.lockedBtnText}>Upgrade to Earth+ ($1.99/mo)</Text>
-                  <Ionicons name="arrow-forward" size={16} color="#052008" />
+                <Text style={styles.squadCardTitle}>Have an Invite Code?</Text>
+                <Text style={styles.squadCardDesc}>If a friend invited you to their squad, enter their invite code below to join!</Text>
+                
+                <View style={styles.inputContainer}>
+                  <Ionicons name="key-outline" size={20} color={Colors.textMuted} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Invite Code (e.g. LUME-1234)"
+                    placeholderTextColor={Colors.textMuted}
+                    value={squadInviteCode}
+                    onChangeText={setSquadInviteCode}
+                    autoCapitalize="characters"
+                    maxLength={15}
+                  />
                 </View>
-              </LinearGradient>
-            </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.joinButton, { backgroundColor: '#fbbf24' }, (!squadInviteCode || joiningSquad) && styles.joinButtonDisabled]} 
+                  onPress={handleJoinSquad}
+                  disabled={!squadInviteCode || joiningSquad}
+                >
+                  <Text style={[styles.joinButtonText, { color: '#052008' }]}>
+                    {joiningSquad ? 'Joining...' : 'Join Squad'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           ) : userData.customSquadName ? (
-            /* Premium Dashboard */
+            /* Premium Dashboard / Active Squad Dashboard */
             <View style={styles.dashboardContainer}>
               <View style={[styles.teamBadge, { backgroundColor: 'rgba(14, 165, 233, 0.1)' }]}>
                 <Ionicons name="people" size={48} color="#0ea5e9" />
@@ -248,19 +393,27 @@ export default function TeamsScreen() {
               <View style={styles.leaderboardCard}>
                 <Text style={styles.leaderboardTitle}>Squad Leaderboard</Text>
                 
-                <View style={styles.leaderboardRow}>
-                  <Text style={styles.rankText}>1</Text>
-                  <View style={[styles.avatarPlaceholder, { backgroundColor: '#0ea5e9' }]}><Text style={{ color: '#fff' }}>Y</Text></View>
-                  <Text style={styles.playerName}>You</Text>
-                  <Text style={[styles.playerPoints, { color: '#0ea5e9' }]}>{userData.totalPoints}</Text>
-                </View>
-                
-                <View style={styles.leaderboardRow}>
-                  <Text style={styles.rankText}>2</Text>
-                  <View style={styles.avatarPlaceholder}><Text>S</Text></View>
-                  <Text style={styles.playerName}>Sarah T. (Pending)</Text>
-                  <Text style={styles.playerPoints}>-</Text>
-                </View>
+                {loadingMembers ? (
+                  <ActivityIndicator size="small" color="#0ea5e9" style={{ marginVertical: 20 }} />
+                ) : (
+                  squadMembers.map((member, idx) => {
+                    const isCurrentUser = member.user_id === userId || member.display_name === userName;
+                    const avatarColor = member.avatar_color || '#0ea5e9';
+                    const initials = member.display_name ? member.display_name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : 'U';
+                    return (
+                      <View key={member.user_id || idx} style={[styles.leaderboardRow, isCurrentUser && styles.currentUserRowBlue]}>
+                        <Text style={styles.rankText}>{idx + 1}</Text>
+                        <View style={[styles.avatarPlaceholder, { backgroundColor: avatarColor }]}>
+                          <Text style={{ color: '#fff', fontSize: 12, fontFamily: Typography.fontFamily.bold }}>{initials}</Text>
+                        </View>
+                        <Text style={[styles.playerName, isCurrentUser && { fontFamily: Typography.fontFamily.bold }]}>
+                          {member.display_name || 'Anonymous User'} {isCurrentUser && '(You)'}
+                        </Text>
+                        <Text style={[styles.playerPoints, { color: '#0ea5e9' }]}>{member.total_points}</Text>
+                      </View>
+                    );
+                  })
+                )}
               </View>
 
               <TouchableOpacity 
@@ -271,33 +424,92 @@ export default function TeamsScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            /* Premium Create Squad Form */
+            /* Premium Forms (Tabs to Create or Join) */
             <View style={styles.createSquadCard}>
-              <View style={styles.squadIconContainer}>
-                <Ionicons name="people" size={40} color="#0ea5e9" />
-              </View>
-              <Text style={styles.squadCardTitle}>Launch Custom Squad</Text>
-              <Text style={styles.squadCardDesc}>Compete directly with your friends or family by launching a custom squad.</Text>
-              
-              <View style={styles.inputContainer}>
-                <Ionicons name="chatbubbles-outline" size={20} color={Colors.textMuted} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Squad Name (e.g. Eco Warriors)"
-                  placeholderTextColor={Colors.textMuted}
-                  value={squadName}
-                  onChangeText={setSquadName}
-                  maxLength={25}
-                />
+              <View style={styles.squadTabContainer}>
+                <TouchableOpacity
+                  style={[styles.squadTabButton, squadTab === 'create' && styles.squadTabButtonActive]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSquadTab('create');
+                  }}
+                >
+                  <Ionicons name="add-circle-outline" size={16} color={squadTab === 'create' ? '#0ea5e9' : Colors.textSecondary} />
+                  <Text style={[styles.squadTabText, squadTab === 'create' && styles.squadTabTextActive]}>Create</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.squadTabButton, squadTab === 'join' && styles.squadTabButtonActive]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSquadTab('join');
+                  }}
+                >
+                  <Ionicons name="enter-outline" size={16} color={squadTab === 'join' ? '#0ea5e9' : Colors.textSecondary} />
+                  <Text style={[styles.squadTabText, squadTab === 'join' && styles.squadTabTextActive]}>Join</Text>
+                </TouchableOpacity>
               </View>
 
-              <TouchableOpacity 
-                style={[styles.joinButton, { backgroundColor: '#0ea5e9' }, !squadName && styles.joinButtonDisabled]} 
-                onPress={handleCreateSquad}
-                disabled={!squadName}
-              >
-                <Text style={styles.joinButtonText}>Create Squad</Text>
-              </TouchableOpacity>
+              {squadTab === 'create' ? (
+                <>
+                  <View style={styles.squadIconContainer}>
+                    <Ionicons name="people" size={40} color="#0ea5e9" />
+                  </View>
+                  <Text style={styles.squadCardTitle}>Launch Custom Squad</Text>
+                  <Text style={styles.squadCardDesc}>Compete directly with your friends or family by launching a custom squad.</Text>
+                  
+                  <View style={styles.inputContainer}>
+                    <Ionicons name="chatbubbles-outline" size={20} color={Colors.textMuted} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Squad Name (e.g. Eco Warriors)"
+                      placeholderTextColor={Colors.textMuted}
+                      value={squadName}
+                      onChangeText={setSquadName}
+                      maxLength={25}
+                    />
+                  </View>
+
+                  <TouchableOpacity 
+                    style={[styles.joinButton, { backgroundColor: '#0ea5e9' }, !squadName && styles.joinButtonDisabled]} 
+                    onPress={handleCreateSquad}
+                    disabled={!squadName}
+                  >
+                    <Text style={styles.joinButtonText}>Create Squad</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <View style={[styles.squadIconContainer, { backgroundColor: 'rgba(14, 165, 233, 0.1)' }]}>
+                    <Ionicons name="enter" size={40} color="#0ea5e9" />
+                  </View>
+                  <Text style={styles.squadCardTitle}>Enter Invite Code</Text>
+                  <Text style={styles.squadCardDesc}>Enter a friend's squad code to join their custom circle.</Text>
+                  
+                  <View style={styles.inputContainer}>
+                    <Ionicons name="key-outline" size={20} color={Colors.textMuted} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Invite Code (e.g. LUME-1234)"
+                      placeholderTextColor={Colors.textMuted}
+                      value={squadInviteCode}
+                      onChangeText={setSquadInviteCode}
+                      autoCapitalize="characters"
+                      maxLength={15}
+                    />
+                  </View>
+
+                  <TouchableOpacity 
+                    style={[styles.joinButton, { backgroundColor: '#0ea5e9' }, (!squadInviteCode || joiningSquad) && styles.joinButtonDisabled]} 
+                    onPress={handleJoinSquad}
+                    disabled={!squadInviteCode || joiningSquad}
+                  >
+                    <Text style={styles.joinButtonText}>
+                      {joiningSquad ? 'Joining...' : 'Join Squad'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           )}
         </View>
@@ -630,5 +842,41 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 20,
     paddingHorizontal: 12,
+  },
+  currentUserRowBlue: {
+    backgroundColor: 'rgba(14, 165, 233, 0.05)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 0,
+  },
+  squadTabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: 20,
+    padding: 4,
+    gap: 4,
+    marginBottom: 20,
+    width: '100%',
+  },
+  squadTabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 16,
+    gap: 6,
+  },
+  squadTabButtonActive: {
+    backgroundColor: Colors.white,
+    ...Shadows.sm,
+  },
+  squadTabText: {
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  squadTabTextActive: {
+    color: '#0ea5e9',
   },
 });

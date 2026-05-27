@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { storage, UserData } from '../utils/storage';
 import { checkBadgeUnlocks } from '../utils/badges';
+import { analytics } from '../utils/analytics';
 
 export const USER_DATA_QUERY_KEY = ['userData'];
 
@@ -25,6 +26,7 @@ export function useLogActionMutation() {
       if (newBadges.length > 0) {
         await storage.earnBadges(newBadges.map((b) => b.id));
       }
+      analytics.track('habit_logged', { points, actionIds, count: actionIds.length });
       return updated;
     },
     onMutate: async ({ points, actionIds }) => {

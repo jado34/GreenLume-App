@@ -8,10 +8,19 @@ import { storage, UserData } from '../../utils/storage';
 import { Colors } from '../../constants/colors';
 import { Typography, Shadows } from '../../constants/typography';
 import { getDynamicTheme } from '../../utils/theme';
+import { supabase, isSupabaseConfigured } from '../../utils/supabase';
 
 const { width } = Dimensions.get('window');
 
-const COMMUNITY_FORESTS = [
+const COMMUNITY_FORESTS: Array<{
+  id: string;
+  name: string;
+  members: number;
+  trees: number;
+  color: string;
+  emoji: string;
+  isCustom?: boolean;
+}> = [
   { id: '1', name: 'Amazon Guardians', members: 1240, trees: 4500, color: '#059669', emoji: '🐆' },
   { id: '2', name: 'Urban Greenery', members: 850, trees: 2100, color: '#3b82f6', emoji: '🏢' },
   { id: '3', name: 'Plastic-Free Ocean', members: 3200, trees: 8900, color: '#0ea5e9', emoji: '🐳' },
@@ -20,11 +29,26 @@ const COMMUNITY_FORESTS = [
 export default function ForestsScreen() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [points, setPoints] = useState(0);
+  const [squadMembersCount, setSquadMembersCount] = useState(1);
 
   useFocusEffect(useCallback(() => {
-    storage.getUserData().then(d => {
+    storage.getUserData().then(async d => {
       setUserData(d);
       setPoints(d.totalPoints);
+      
+      if (d?.customSquadCode && isSupabaseConfigured()) {
+        try {
+          const { count, error } = await supabase
+            .from('leaderboard')
+            .select('user_id', { count: 'exact', head: true })
+            .eq('raw_user_data->userData->>customSquadCode', d.customSquadCode);
+          if (!error && count !== null) {
+            setSquadMembersCount(count);
+          }
+        } catch (err) {
+          console.warn('Error fetching squad member count:', err);
+        }
+      }
     });
   }, []));
 
@@ -59,27 +83,67 @@ export default function ForestsScreen() {
           <Text style={styles.sectionDesc}>Collaborate with others to reach massive environmental milestones.</Text>
           
           <View style={styles.forestGrid}>
-            {COMMUNITY_FORESTS.map((forest) => (
+            {(userData?.customSquadName
+              ? [
+                  {
+                    id: 'custom_squad',
+                    name: userData.customSquadName,
+                    members: squadMembersCount,
+                    trees: Math.max(1, Math.floor(points / 50)),
+                    color: '#0ea5e9',
+                    emoji: '👥',
+                    isCustom: true,
+                  },
+                  ...COMMUNITY_FORESTS,
+                ]
+              : COMMUNITY_FORESTS
+            ).map((forest) => (
               <TouchableOpacity 
                 key={forest.id} 
-                style={[styles.forestCard, { borderColor: forest.color + '20' }]}
+                style={[
+                  styles.forestCard, 
+                  { borderColor: forest.color + '20' },
+                  forest.isCustom && { borderWidth: 2, borderColor: '#0ea5e9' }
+                ]}
                 activeOpacity={0.8}
-                onPress={() => Toast.show({ type: 'info', text1: `Joining ${forest.name}...`, text2: 'Community features coming soon!' })}
-                accessibilityLabel={`Join ${forest.name} community. ${forest.members} members.`}
+                onPress={() => {
+                  if (forest.isCustom) {
+                    router.push('/teams' as any);
+                  } else {
+                    Toast.show({ type: 'info', text1: `Joining ${forest.name}...`, text2: 'Community features coming soon!' });
+                  }
+                }}
+                accessibilityLabel={forest.isCustom ? `View custom squad ${forest.name}` : `Join ${forest.name} community. ${forest.members} members.`}
                 accessibilityRole="button"
               >
                 <View style={[styles.forestIcon, { backgroundColor: forest.color + '15' }]}>
                   <Text style={{ fontSize: 32 }}>{forest.emoji}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.forestName}>{forest.name}</Text>
-                  <Text style={styles.forestMeta}>{forest.members} members • {forest.trees} trees saved</Text>
+                  <Text style={styles.forestName}>
+                    {forest.name} {forest.isCustom && <Text style={{ color: '#0ea5e9', fontSize: 10, fontFamily: Typography.fontFamily.bold }}> (ACTIVE SQUAD)</Text>}
+                  </Text>
+                  <Text style={styles.forestMeta}>
+                    {forest.isCustom 
+                      ? `${forest.members} member${forest.members !== 1 ? 's' : ''} • ${forest.trees} trees saved`
+                      : `${forest.members} members • ${forest.trees} trees saved`}
+                  </Text>
                   
                   <View style={styles.progressContainer}>
                     <View style={styles.progressTrack}>
-                      <View style={[styles.progressFill, { width: '65%', backgroundColor: forest.color }]} />
+                      <View style={[
+                        styles.progressFill, 
+                        { 
+                          width: forest.isCustom ? `${Math.min(100, Math.floor((forest.trees / 100) * 100))}%` : '65%', 
+                          backgroundColor: forest.color 
+                        }
+                      ]} />
                     </View>
-                    <Text style={styles.progressLabel}>Goal: 10k trees (65%)</Text>
+                    <Text style={styles.progressLabel}>
+                      {forest.isCustom 
+                        ? `Goal: 100 trees (${Math.min(100, Math.floor((forest.trees / 100) * 100))}%)`
+                        : 'Goal: 10k trees (65%)'}
+                    </Text>
                   </View>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
