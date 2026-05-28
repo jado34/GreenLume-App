@@ -29,12 +29,15 @@ import { supabase, isSupabaseConfigured } from '../utils/supabase';
 import { storage } from '../utils/storage';
 import { notifications } from '../utils/notifications';
 import { queryClient, asyncStoragePersister } from '../utils/queryClient';
-import { PostHogProvider } from 'posthog-react-native';
 import { posthog, analytics } from '../utils/analytics';
 
 WebBrowser.maybeCompleteAuthSession();
 
 SplashScreen.preventAutoHideAsync();
+
+function SafePostHogProvider({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -150,7 +153,7 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <PostHogProvider client={posthog}>
+    <SafePostHogProvider>
       <PersistQueryClientProvider
         client={queryClient}
         persistOptions={{ persister: asyncStoragePersister }}
@@ -177,6 +180,6 @@ export default function RootLayout() {
         </GestureHandlerRootView>
       </SafeAreaProvider>
     </PersistQueryClientProvider>
-    </PostHogProvider>
+    </SafePostHogProvider>
   );
 }
