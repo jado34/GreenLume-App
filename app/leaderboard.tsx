@@ -100,7 +100,7 @@ export default function LeaderboardScreen() {
       const { data, error } = await supabase
         .from('leaderboard')
         .select('display_name, total_points, current_streak, avatar_color')
-        .eq('raw_user_data->userData->>customSquadCode', code)
+        .contains('raw_user_data', { userData: { customSquads: [{ code }] } })
         .order('total_points', { ascending: false });
 
       if (error) throw error;

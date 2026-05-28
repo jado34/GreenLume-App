@@ -50,6 +50,7 @@ export interface UserData {
   companyName: string | null;
   customSquadName: string | null;
   customSquadCode: string | null;
+  customSquads?: Array<{ code: string; name: string }>;
   isEsgAdmin?: boolean;
   // Weekly action log: maps ISO Monday date (week key) -> {actionId: daysLogged[]}
   weeklyActionLog: Record<string, Record<string, string[]>>;
@@ -75,6 +76,7 @@ const DEFAULT_USER_DATA: UserData = {
   companyName: null,
   customSquadName: null,
   customSquadCode: null,
+  customSquads: [],
   isEsgAdmin: false,
   weeklyActionLog: {},
   lastWeekKey: null,
@@ -328,6 +330,15 @@ export const storage = {
       if (data.companyName === undefined) data.companyName = null;
       if (data.customSquadName === undefined) data.customSquadName = null;
       if (data.customSquadCode === undefined) data.customSquadCode = null;
+      if (data.customSquads === undefined) {
+        data.customSquads = [];
+        if (data.customSquadCode && data.customSquadName) {
+          data.customSquads.push({
+            code: data.customSquadCode,
+            name: data.customSquadName,
+          });
+        }
+      }
       if (data.isEsgAdmin === undefined) data.isEsgAdmin = false;
       if (!data.weeklyActionLog) data.weeklyActionLog = {};
       if (data.lastWeekKey === undefined) data.lastWeekKey = null;
@@ -659,8 +670,13 @@ export const storage = {
   async createCustomSquad(name: string): Promise<UserData> {
     const data = await this.getUserData();
     const code = 'LUME-' + Math.floor(1000 + Math.random() * 9000);
+    
+    if (!data.customSquads) data.customSquads = [];
+    data.customSquads.push({ code, name });
+    
     data.customSquadName = name;
     data.customSquadCode = code;
+    
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
     await storage.syncToSupabase();
     return data;
@@ -668,19 +684,57 @@ export const storage = {
 
   async joinCustomSquad(name: string, code: string): Promise<UserData> {
     const data = await this.getUserData();
+    
+    if (!data.customSquads) data.customSquads = [];
+    
+    const exists = data.customSquads.some(s => s.code === code);
+    if (!exists) {
+      data.customSquads.push({ code, name });
+    }
+    
     data.customSquadName = name;
     data.customSquadCode = code;
+    
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
     await storage.syncToSupabase();
     return data;
   },
 
-  async leaveCustomSquad(): Promise<UserData> {
+  async leaveCustomSquad(codeParam?: string): Promise<UserData> {
     const data = await this.getUserData();
-    data.customSquadName = null;
-    data.customSquadCode = null;
+    if (!data.customSquads) data.customSquads = [];
+    
+    const codeToLeave = codeParam || data.customSquadCode;
+    if (!codeToLeave) return data;
+    
+    data.customSquads = data.customSquads.filter(s => s.code !== codeToLeave);
+    
+    if (data.customSquadCode === codeToLeave) {
+      if (data.customSquads.length > 0) {
+        data.customSquadCode = data.customSquads[0].code;
+        data.customSquadName = data.customSquads[0].name;
+      } else {
+        data.customSquadCode = null;
+        data.customSquadName = null;
+      }
+    }
+    
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
     await storage.syncToSupabase();
+    return data;
+  },
+
+  async selectActiveSquad(code: string): Promise<UserData> {
+    const data = await this.getUserData();
+    if (!data.customSquads) data.customSquads = [];
+    
+    const squad = data.customSquads.find(s => s.code === code);
+    if (squad) {
+      data.customSquadName = squad.name;
+      data.customSquadCode = squad.code;
+      await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+      await storage.syncToSupabase();
+    }
     return data;
   },
 

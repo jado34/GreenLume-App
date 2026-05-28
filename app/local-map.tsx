@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { Colors } from '../constants/colors';
 import { Typography, Shadows } from '../constants/typography';
+import { supabase, isSupabaseConfigured } from '../utils/supabase';
 
 type EcoLocation = {
   id: string;
@@ -29,6 +30,19 @@ type EcoLocation = {
   points: number;
   distance?: string;
 };
+
+// Simple distance helper (Haversine formula in km)
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 // Default fallback locations (San Francisco) used when location is denied
 const DEFAULT_ECO_LOCATIONS: EcoLocation[] = [
@@ -69,14 +83,57 @@ export default function LocalMapScreen() {
         const lat = loc.coords.latitude;
         const lng = loc.coords.longitude;
 
-        // Generate mock eco-spots near the user's real location
-        const nearby: EcoLocation[] = [
-          { id: '1', title: 'Local Zero Waste Shop', type: 'shop', description: 'Plastic-free bulk goods nearby!', lat: lat + 0.003, lng: lng - 0.002, points: 50, distance: '~350m' },
-          { id: '2', title: 'Neighbourhood Tree Planting', type: 'event', description: 'Community forestry event this Saturday', lat: lat + 0.007, lng: lng + 0.005, points: 150, distance: '~780m' },
-          { id: '3', title: 'Solar EV Charger', type: 'ev', description: 'Level 2 & DC Fast Charger', lat: lat - 0.005, lng: lng - 0.006, points: 20, distance: '~1.1km' },
-          { id: '4', title: 'Farmers Organic Market', type: 'food', description: 'Locally sourced organic produce', lat: lat - 0.002, lng: lng + 0.004, points: 40, distance: '~430m' },
-        ];
-        setEcoLocations(nearby);
+        let spotsLoaded = false;
+
+        if (isSupabaseConfigured()) {
+          // Bounding box query (within ~10km bounding box: +/- 0.09 degrees lat/lng)
+          const latOffset = 0.09;
+          const lngOffset = 0.09;
+          
+          const { data, error } = await supabase
+            .from('eco_spots')
+            .select('*')
+            .eq('verified', true)
+            .gte('latitude', lat - latOffset)
+            .lte('latitude', lat + latOffset)
+            .gte('longitude', lng - lngOffset)
+            .lte('longitude', lng + lngOffset);
+
+          if (!error && data && data.length > 0) {
+            const mapped: EcoLocation[] = data.map((spot: any) => {
+              const d = calculateDistance(lat, lng, spot.latitude, spot.longitude);
+              const distanceStr = d < 1 
+                ? `~${Math.round(d * 1000)}m` 
+                : `~${d.toFixed(1)}km`;
+              return {
+                id: spot.id,
+                title: spot.title,
+                type: spot.type as any,
+                description: spot.description || '',
+                lat: spot.latitude,
+                lng: spot.longitude,
+                points: spot.points,
+                distance: distanceStr,
+                rawDist: d,
+              };
+            });
+            // Sort by raw distance in kilometers
+            mapped.sort((a: any, b: any) => a.rawDist - b.rawDist);
+            setEcoLocations(mapped);
+            spotsLoaded = true;
+          }
+        }
+
+        if (!spotsLoaded) {
+          // Fallback: Generate mock eco-spots near the user's real location if DB is offline/empty
+          const nearby: EcoLocation[] = [
+            { id: '1', title: 'Local Zero Waste Shop', type: 'shop', description: 'Plastic-free bulk goods nearby!', lat: lat + 0.003, lng: lng - 0.002, points: 50, distance: '~350m' },
+            { id: '2', title: 'Neighbourhood Tree Planting', type: 'event', description: 'Community forestry event this Saturday', lat: lat + 0.007, lng: lng + 0.005, points: 150, distance: '~780m' },
+            { id: '3', title: 'Solar EV Charger', type: 'ev', description: 'Level 2 & DC Fast Charger', lat: lat - 0.005, lng: lng - 0.006, points: 20, distance: '~1.1km' },
+            { id: '4', title: 'Farmers Organic Market', type: 'food', description: 'Locally sourced organic produce', lat: lat - 0.002, lng: lng + 0.004, points: 40, distance: '~430m' },
+          ];
+          setEcoLocations(nearby);
+        }
       } catch (err) {
         console.warn('Location error:', err);
         Toast.show({ type: 'error', text1: 'Location Error', text2: 'Could not get your location.' });

@@ -9,8 +9,20 @@ export async function verifyImageWithGemini(base64Image: string, loggedActions: 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
   
   const prompt = `Analyze this image. The user claims they performed the following green actions: ${loggedActions.join(', ')}.
-Is this a real, live-captured photo that shows proof of these actions (e.g. reusable bag, recycling bin, walking shoes, transit, reusable cup/bottle)?
-Ensure the photo is not a screenshot of a computer screen, a generic stock photo, a photo of another screen, or completely unrelated.
+Is this a real, live-captured photo, document, or screen receipt that shows valid proof of these actions?
+
+Acceptable Localized Evidence (West African Context):
+1. Transport: OPay/Bolt/Uber rideshare trip receipts or app screens, Cowry Card (Lagos BRT card), public transit bus tickets, train tickets, walking shoes on roads, or bicycles.
+2. Waste & Reuse: Reusable water flasks/tumblers, Wecyclers green recycling bags, sorted recycling piles, reusable shopping bags, or gadget trade-in receipts.
+3. Food: Plant-based meals (beans, local yams, plantain, jollof), fresh produce from local markets, or chowdeck/glovo delivery details showing cutlery was declined.
+4. Energy: Closed generator switch, solar panel installations, solar power-banks, natural ventilation (open windows), or laptops working in cafes/co-working hubs.
+5. Water: Collected rainwater drums, repaired taps, or watering plants in the nursery.
+
+Verify that the photo is not:
+- A generic stock photo from the web
+- A photo of another computer screen or monitor
+- Completely unrelated to the actions
+
 Answer strictly with a JSON object in this format:
 {
   "valid": true or false,

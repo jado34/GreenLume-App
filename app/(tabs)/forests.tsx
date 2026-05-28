@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import Toast from 'react-native-toast-message';
+import * as Haptics from 'expo-haptics';
 import { storage, UserData } from '../../utils/storage';
 import { Colors } from '../../constants/colors';
 import { Typography, Shadows } from '../../constants/typography';
@@ -19,40 +20,107 @@ const COMMUNITY_FORESTS: Array<{
   trees: number;
   color: string;
   emoji: string;
-  isCustom?: boolean;
 }> = [
   { id: '1', name: 'Amazon Guardians', members: 1240, trees: 4500, color: '#059669', emoji: '🐆' },
   { id: '2', name: 'Urban Greenery', members: 850, trees: 2100, color: '#3b82f6', emoji: '🏢' },
   { id: '3', name: 'Plastic-Free Ocean', members: 3200, trees: 8900, color: '#0ea5e9', emoji: '🐳' },
 ];
 
+const SQUAD_EMOJIS = ['🌳', '🌿', '🐾', '🍀', '🌲', '🌱', '🌺', '🐋'];
+const getSquadEmoji = (code: string) => {
+  let sum = 0;
+  for (let i = 0; i < code.length; i++) sum += code.charCodeAt(i);
+  return SQUAD_EMOJIS[sum % SQUAD_EMOJIS.length];
+};
+
+const SQUAD_COLORS = ['#059669', '#3b82f6', '#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b'];
+const getSquadColor = (code: string) => {
+  let sum = 0;
+  for (let i = 0; i < code.length; i++) sum += code.charCodeAt(i);
+  return SQUAD_COLORS[sum % SQUAD_COLORS.length];
+};
+
+interface SquadDetail {
+  code: string;
+  name: string;
+  members: number;
+  trees: number;
+}
+
 export default function ForestsScreen() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [points, setPoints] = useState(0);
-  const [squadMembersCount, setSquadMembersCount] = useState(1);
+  const [squadsData, setSquadsData] = useState<Record<string, SquadDetail>>({});
 
   useFocusEffect(useCallback(() => {
     storage.getUserData().then(async d => {
       setUserData(d);
       setPoints(d.totalPoints);
       
-      if (d?.customSquadCode && isSupabaseConfigured()) {
+      if (d.customSquads && d.customSquads.length > 0 && isSupabaseConfigured()) {
         try {
-          const { count, error } = await supabase
-            .from('leaderboard')
-            .select('user_id', { count: 'exact', head: true })
-            .eq('raw_user_data->userData->>customSquadCode', d.customSquadCode);
-          if (!error && count !== null) {
-            setSquadMembersCount(count);
-          }
+          const promises = d.customSquads.map(async (squad) => {
+            const { data, error } = await supabase
+              .from('leaderboard')
+              .select('total_points')
+              .contains('raw_user_data', { userData: { customSquads: [{ code: squad.code }] } });
+              
+            if (!error && data) {
+              const members = data.length;
+              const totalPoints = data.reduce((sum, item) => sum + (item.total_points || 0), 0);
+              const trees = Math.max(1, Math.floor(totalPoints / 50));
+              return {
+                code: squad.code,
+                name: squad.name,
+                members,
+                trees,
+              };
+            }
+            return {
+              code: squad.code,
+              name: squad.name,
+              members: 1,
+              trees: Math.max(1, Math.floor(d.totalPoints / 50)),
+            };
+          });
+          
+          const results = await Promise.all(promises);
+          const dataMap: Record<string, SquadDetail> = {};
+          results.forEach(res => {
+            dataMap[res.code] = res;
+          });
+          setSquadsData(dataMap);
         } catch (err) {
-          console.warn('Error fetching squad member count:', err);
+          console.warn('Error fetching squads data:', err);
         }
       }
     });
   }, []));
 
   const theme = getDynamicTheme(points);
+  const hasCustomSquads = !!(userData?.customSquads && userData.customSquads.length > 0);
+
+  const listToRender = hasCustomSquads
+    ? (userData?.customSquads || []).map((squad) => {
+        const squadDetail = squadsData[squad.code] || {
+          code: squad.code,
+          name: squad.name,
+          members: 1,
+          trees: Math.max(1, Math.floor(points / 50)),
+        };
+        const isActive = userData.customSquadCode === squad.code;
+        return {
+          id: squad.code,
+          name: squad.name,
+          members: squadDetail.members,
+          trees: squadDetail.trees,
+          color: getSquadColor(squad.code),
+          emoji: getSquadEmoji(squad.code),
+          isCustom: true,
+          isActive,
+        };
+      })
+    : COMMUNITY_FORESTS.map(f => ({ ...f, isCustom: false, isActive: false }));
 
   return (
     <View style={styles.container}>
@@ -79,35 +147,36 @@ export default function ForestsScreen() {
 
         {/* My Forest (Selection) */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Join a Shared Forest</Text>
-          <Text style={styles.sectionDesc}>Collaborate with others to reach massive environmental milestones.</Text>
+          <Text style={styles.sectionTitle}>
+            {hasCustomSquads ? 'My Custom Squads' : 'Join a Shared Forest'}
+          </Text>
+          <Text style={styles.sectionDesc}>
+            {hasCustomSquads 
+              ? 'Track collective impact and compete in your squads.' 
+              : 'Collaborate with others to reach massive environmental milestones.'}
+          </Text>
           
           <View style={styles.forestGrid}>
-            {(userData?.customSquadName
-              ? [
-                  {
-                    id: 'custom_squad',
-                    name: userData.customSquadName,
-                    members: squadMembersCount,
-                    trees: Math.max(1, Math.floor(points / 50)),
-                    color: '#0ea5e9',
-                    emoji: '👥',
-                    isCustom: true,
-                  },
-                  ...COMMUNITY_FORESTS,
-                ]
-              : COMMUNITY_FORESTS
-            ).map((forest) => (
+            {listToRender.map((forest) => (
               <TouchableOpacity 
                 key={forest.id} 
                 style={[
                   styles.forestCard, 
                   { borderColor: forest.color + '20' },
-                  forest.isCustom && { borderWidth: 2, borderColor: '#0ea5e9' }
+                  forest.isActive && { borderWidth: 2, borderColor: '#0ea5e9' }
                 ]}
                 activeOpacity={0.8}
-                onPress={() => {
+                onPress={async () => {
                   if (forest.isCustom) {
+                    if (!forest.isActive) {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      await storage.selectActiveSquad(forest.id);
+                      Toast.show({
+                        type: 'success',
+                        text1: 'Active Squad Changed',
+                        text2: `"${forest.name}" is now your active squad.`,
+                      });
+                    }
                     router.push('/teams' as any);
                   } else {
                     Toast.show({ type: 'info', text1: `Joining ${forest.name}...`, text2: 'Community features coming soon!' });
@@ -121,11 +190,11 @@ export default function ForestsScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.forestName}>
-                    {forest.name} {forest.isCustom && <Text style={{ color: '#0ea5e9', fontSize: 10, fontFamily: Typography.fontFamily.bold }}> (ACTIVE SQUAD)</Text>}
+                    {forest.name} {forest.isActive && <Text style={{ color: '#0ea5e9', fontSize: 10, fontFamily: Typography.fontFamily.bold }}> (ACTIVE SQUAD)</Text>}
                   </Text>
                   <Text style={styles.forestMeta}>
                     {forest.isCustom 
-                      ? `${forest.members} member${forest.members !== 1 ? 's' : ''} • ${forest.trees} trees saved`
+                      ? `${forest.members} member${forest.members !== 1 ? 's' : ''} • ${forest.trees} tree${forest.trees !== 1 ? 's' : ''} saved`
                       : `${forest.members} members • ${forest.trees} trees saved`}
                   </Text>
                   

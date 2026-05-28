@@ -8,8 +8,15 @@ const host = process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://app.posthog.com';
 
 export const posthog = new PostHog(apiKey, {
   host,
-  enable: !!process.env.EXPO_PUBLIC_POSTHOG_API_KEY,
+  customStorage: {
+    getItem: (key: string) => AsyncStorage.getItem(key),
+    setItem: (key: string, value: string) => AsyncStorage.setItem(key, value),
+  },
 });
+
+if (!process.env.EXPO_PUBLIC_POSTHOG_API_KEY) {
+  posthog.optOut();
+}
 
 /**
  * Check if the user has consented to analytics tracking.
