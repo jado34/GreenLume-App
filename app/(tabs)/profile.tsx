@@ -13,6 +13,7 @@ import { storage, UserData } from '../../utils/storage';
 import { supabase, isSupabaseConfigured } from '../../utils/supabase';
 import { getRankInfo, BADGES } from '../../utils/badges';
 import { notifications } from '../../utils/notifications';
+import { analytics } from '../../utils/analytics';
 import { Colors } from '../../constants/colors';
 import { Typography, Shadows } from '../../constants/typography';
 import { getDynamicTheme } from '../../utils/theme';
@@ -39,6 +40,7 @@ export default function ProfileScreen() {
   const [authMethod, setAuthMethod] = useState('');
   const [joinDate, setJoinDate] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
   const [customAvatar, setCustomAvatar] = useState<string | null>(null);
 
   // Edit Profile modal state
@@ -48,13 +50,14 @@ export default function ProfileScreen() {
 
   useFocusEffect(useCallback(() => {
     const load = async () => {
-      const [data, name, method, date, notifEnabled, avatar] = await Promise.all([
+      const [data, name, method, date, notifEnabled, avatar, analyticsConsent] = await Promise.all([
         storage.getUserData(),
         storage.getUserName(),
         storage.getAuthMethod(),
         storage.getJoinDate(),
         notifications.isEnabled(),
         storage.getCustomAvatar(),
+        storage.getAnalyticsConsent(),
       ]);
       setUserData(data);
       setUserName(name);
@@ -62,6 +65,7 @@ export default function ProfileScreen() {
       setJoinDate(date);
       setNotificationsEnabled(notifEnabled);
       setCustomAvatar(avatar);
+      setAnalyticsEnabled(analyticsConsent);
     };
     load();
   }, []));
@@ -198,6 +202,18 @@ export default function ProfileScreen() {
     }
   };
 
+  const toggleAnalytics = async () => {
+    const newValue = !analyticsEnabled;
+    setAnalyticsEnabled(newValue);
+    await storage.setAnalyticsConsent(newValue);
+    await analytics.setConsent(newValue);
+    Toast.show({
+      type: 'info',
+      text1: newValue ? 'Analytics On' : 'Analytics Off',
+      text2: newValue ? 'Helping us improve GreenLume.' : 'No usage data will be collected.',
+    });
+  };
+
   const accountSettings: SettingItem[] = [
     { icon: 'person-outline', label: 'Edit Profile', desc: 'Update your name & avatar', onPress: openEditProfile },
     {
@@ -208,12 +224,18 @@ export default function ProfileScreen() {
       switch: true,
     },
     {
+      icon: 'analytics-outline',
+      label: 'Usage Analytics',
+      desc: analyticsEnabled ? 'On - Helping us improve the app' : 'Off - No data collected',
+      onPress: toggleAnalytics,
+      switch: true,
+    },
+    {
       icon: 'card-outline',
       label: 'Manage Subscription',
       desc: 'View or cancel your Earth+ plan',
       onPress: async () => {
         try {
-          // Attempt to open the Customer Center
           await RevenueCatUI.presentCustomerCenter();
         } catch (error: any) {
           Toast.show({
@@ -272,8 +294,8 @@ export default function ProfileScreen() {
             </View>
             {item.switch ? (
               <Switch
-                value={item.label === 'Daily Reminder' ? notificationsEnabled : false}
-                onValueChange={toggleNotifications}
+                value={item.label === 'Daily Reminder' ? notificationsEnabled : item.label === 'Usage Analytics' ? analyticsEnabled : false}
+                onValueChange={item.label === 'Daily Reminder' ? toggleNotifications : item.label === 'Usage Analytics' ? toggleAnalytics : undefined}
                 trackColor={{ false: Colors.neutral300, true: Colors.primary }}
                 thumbColor={Colors.white}
               />

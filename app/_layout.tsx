@@ -98,7 +98,7 @@ export default function RootLayout() {
             provider,
           });
 
-          await storage.restoreFromSupabase();
+          await storage.restoreFromSupabase(event === 'SIGNED_IN');
 
           // Auto-upgrade developer account to Premium in the database
           if (user.email === 'olawuwoadegoke16@gmail.com') {
@@ -144,6 +144,8 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync();
+      // Retry any sync that failed while offline in a previous session
+      storage.flushPendingSync();
       notifications.isEnabled().then((enabled) => {
         if (enabled) notifications.scheduleDailyReminder();
       });

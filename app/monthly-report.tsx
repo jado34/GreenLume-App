@@ -10,6 +10,7 @@ import * as Sharing from 'expo-sharing';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { storage, UserData } from '../utils/storage';
 import { getRankInfo } from '../utils/badges';
+import { analytics } from '../utils/analytics';
 import { Colors } from '../constants/colors';
 import { Typography, Shadows } from '../constants/typography';
 
@@ -27,6 +28,7 @@ const CATEGORY_DATA = [
 export default function MonthlyReportScreen() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [userName, setUserName] = useState('');
+  const [isCapturing, setIsCapturing] = useState(false);
   const viewShotRef = useRef<ViewShot>(null);
 
   useFocusEffect(useCallback(() => {
@@ -41,7 +43,11 @@ export default function MonthlyReportScreen() {
     
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setIsCapturing(true);
+      // Allow a brief render cycle so the watermark footer appears
+      await new Promise((res) => setTimeout(res, 100));
       const uri = await viewShotRef.current.capture();
+      setIsCapturing(false);
       
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
@@ -49,10 +55,12 @@ export default function MonthlyReportScreen() {
           dialogTitle: 'Share your GreenLume Impact!',
           mimeType: 'image/png',
         });
+        analytics.track('impact_report_shared', { totalPoints: userData?.totalPoints, actionsLogged: userData?.actionsLogged });
       } else {
         Toast.show({ type: 'error', text1: 'Sharing not available on this device' });
       }
     } catch (err) {
+      setIsCapturing(false);
       console.error(err);
       Toast.show({ type: 'error', text1: 'Failed to share impact snapshot' });
     }
@@ -150,6 +158,15 @@ export default function MonthlyReportScreen() {
               </View>
             ))}
           </View>
+
+          {/* Branded watermark — only visible when capturing screenshot */}
+          {isCapturing && (
+            <View style={styles.shareWatermark}>
+              <Text style={styles.shareWatermarkLogo}>🌿 GreenLume</Text>
+              <Text style={styles.shareWatermarkText}>Track your sustainability habits</Text>
+              <Text style={styles.shareWatermarkLink}>Download: greenlume.app</Text>
+            </View>
+          )}
         </ViewShot>
 
         {/* Dynamic Line Chart */}
@@ -256,4 +273,9 @@ const styles = StyleSheet.create({
   catTrack: { flex: 1, height: 10, backgroundColor: Colors.neutral100, borderRadius: 5, overflow: 'hidden' },
   catFill: { height: 10, borderRadius: 5 },
   catPct: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.sm, width: 38, textAlign: 'right' },
+  // Share card watermark
+  shareWatermark: { backgroundColor: '#1b5e20', paddingVertical: 14, paddingHorizontal: 20, alignItems: 'center', gap: 2 },
+  shareWatermarkLogo: { fontFamily: Typography.fontFamily.extraBold, fontSize: Typography.fontSize.xl, color: '#ffffff' },
+  shareWatermarkText: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.sm, color: 'rgba(255,255,255,0.8)' },
+  shareWatermarkLink: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.sm, color: '#86efac', letterSpacing: 0.5 },
 });

@@ -1,7 +1,7 @@
 import * as Location from 'expo-location';
 
 export interface LocalContext {
-  temperatureF: number;
+  temperatureC: number;
   condition: string; // 'sunny', 'cloudy', 'raining', 'snowing', etc.
   isDay: boolean;
   latitude: number;
@@ -36,8 +36,8 @@ export async function getLocalContext(): Promise<LocalContext | null> {
     const lat = location.coords.latitude;
     const lon = location.coords.longitude;
 
-    // Fetch from Open-Meteo
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&temperature_unit=fahrenheit`;
+    // Fetch from Open-Meteo (default is Celsius)
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day`;
     
     const response = await fetch(url);
     if (!response.ok) {
@@ -48,12 +48,12 @@ export async function getLocalContext(): Promise<LocalContext | null> {
     const current = data.current;
     if (!current) return null;
 
-    const temperatureF = Math.round(current.temperature_2m);
+    const temperatureC = Math.round(current.temperature_2m);
     const isDay = current.is_day === 1;
     const condition = getWeatherCondition(current.weather_code, isDay);
 
     return {
-      temperatureF,
+      temperatureC,
       condition,
       isDay,
       latitude: lat,

@@ -11,6 +11,7 @@ import { USER_DATA_QUERY_KEY } from '../hooks/useUserData';
 import { Colors } from '../constants/colors';
 import { Typography, Shadows } from '../constants/typography';
 import { getLocalContext, LocalContext } from '../utils/location';
+import { getAICoachResponse } from '../utils/gemini';
 
 interface Message {
   id: string;
@@ -78,35 +79,41 @@ export default function AICoachScreen() {
         // FIX #4: Only send greeting once per mount using a ref flag
         if (!greetingFiredRef.current) {
           greetingFiredRef.current = true;
-          let greeting = "Hi there! I'm your Earth+ Eco-Coach. I've been analyzing your recent activity.\n\n";
+          const hour = new Date().getHours();
+          let timeGreeting = "Hi there";
+          if (hour < 12) timeGreeting = "Good morning";
+          else if (hour < 17) timeGreeting = "Good afternoon";
+          else timeGreeting = "Good evening";
+
+          let greeting = `${timeGreeting}! I'm your Earth+ Eco-Coach. I've been analyzing your recent activity.\n\n`;
           
           if (ctx) {
             if (ctx.condition === 'raining' || ctx.condition === 'stormy') {
-              greeting += `🌧️ It looks like it's ${ctx.condition} and ${ctx.temperatureF}°F outside! A great day to focus on indoor energy savings, like turning off unnecessary lights or unplugging unused devices. \n\n`;
+              greeting += `🌧️ It looks like it's ${ctx.condition} and ${ctx.temperatureC}°C outside! Good time to harvest rainwater for cleaning or plants, which saves borehole pumping electricity. If you must travel, consider carpooling or using the BRT/train to avoid gridlock traffic. \n\n`;
             } else if (ctx.condition === 'sunny' || ctx.condition === 'clear') {
-              greeting += `☀️ It's a beautiful ${ctx.temperatureF}°F and ${ctx.condition} day! Perfect weather to ride your bike or walk instead of driving, which can save up to 2.0kg of CO₂. \n\n`;
-            } else if (ctx.condition === 'snowing') {
-              greeting += `❄️ Brrr, it's ${ctx.temperatureF}°F and ${ctx.condition} outside! Keep warm, and remember that lowering your thermostat by just 1 degree saves significant energy. \n\n`;
+              greeting += `☀️ It's a sunny ${ctx.temperatureC}°C outside! Great day to use natural lighting or solar setups. Watch the AC usage to save on prepaid meter units, and try opening windows for a natural breeze instead. \n\n`;
+            } else if (ctx.condition === 'cloudy' || ctx.condition === 'foggy') {
+              greeting += `🌫️ It's ${ctx.condition} and ${ctx.temperatureC}°C outside (typical Harmattan vibes). The cooler air means you can easily switch off the AC and run a fan or use natural ventilation, saving massive generator fuel! \n\n`;
             } else {
-              greeting += `🌡️ It's currently ${ctx.temperatureF}°F and ${ctx.condition} outside. Consider taking public transit today to reduce your carbon footprint! \n\n`;
+              greeting += `🌡️ It's currently ${ctx.temperatureC}°C and ${ctx.condition} outside. Perfect weather to walk short distances instead of driving! \n\n`;
             }
           }
         
           if (userData.currentStreak > 2) {
-            greeting += `🔥 Incredible ${userData.currentStreak}-day streak! Consistency is the hardest part of sustainability, and you are crushing it. `;
+            greeting += `🔥 Incredible ${userData.currentStreak}-day streak! Consistency is key, and you are crushing your daily habits. `;
           } else if (userData.actionsLogged > 0) {
-            greeting += `I see you've logged ${userData.actionsLogged} total actions so far. Great start! `;
+            greeting += `I see you've logged ${userData.actionsLogged} total actions so far. Keep going! `;
           } else {
-            greeting += `You haven't logged any actions today yet. Let's get started on saving the planet! `;
+            greeting += `You haven't logged any actions today yet. Tap 'Log Actions' to record your first green choice! `;
           }
 
           if (userData.totalPoints > 500) {
-            greeting += `With ${userData.totalPoints} GreenLume points, your carbon offset is mathematically outperforming 85% of other users in your region. \n\n`;
+            greeting += `With ${userData.totalPoints} GreenLume points, you are outperforming 85% of other eco-warriors in your area. \n\n`;
           } else {
-            greeting += `Every point counts. You have ${userData.totalPoints} points, which is a solid foundation. \n\n`;
+            greeting += `You have accumulated ${userData.totalPoints} points so far. Every habit counts towards a sustainable future! \n\n`;
           }
 
-          greeting += `💡 **My Daily Insight for you:**\nBased on your profile, you could easily double your impact this week by focusing on "Zero Plastic". Try bringing a reusable cup to your local coffee shop tomorrow—it saves about 0.05kg of CO₂ per cup!`;
+          greeting += `💡 **My Daily Insight for you:**\nBased on your activity, you can make a huge impact today by declining plastic cutlery on your next Chowdeck or Glovo delivery, or by carrying an aesthetic flask for drinking water to reduce single-use plastic bottles.`;
 
           // Start typewriter stream for first message
           streamMessage(greeting);
@@ -141,7 +148,7 @@ export default function AICoachScreen() {
     }, 15);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!inputText.trim() || isAiResponding) return;
 
     const userText = inputText.trim();
@@ -149,19 +156,49 @@ export default function AICoachScreen() {
     
     // Add user message
     const userMsgId = Math.random().toString();
-    setMessages((prev) => [...prev, { id: userMsgId, sender: 'user', text: userText }]);
+    const newMessages = [...messages, { id: userMsgId, sender: 'user' as const, text: userText }];
+    setMessages(newMessages);
     setIsAiResponding(true);
     
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 50);
 
-    // Simulate AI thinking and reply
-    setTimeout(() => {
+    try {
+      // Format chat history for Gemini API
+      const chatHistory = newMessages.map(msg => ({
+        role: msg.sender === 'user' ? 'user' as const : 'model' as const,
+        parts: [{ text: msg.text }]
+      }));
+
+      // Gather current context
+      const context = {
+        currentTime: `${new Date().toLocaleTimeString()} on ${new Date().toDateString()}`,
+        weather: localContext ? {
+          temperatureC: localContext.temperatureC,
+          condition: localContext.condition,
+          isDay: localContext.isDay
+        } : null,
+        userStats: {
+          streak: userData?.currentStreak || 0,
+          totalPoints: userData?.totalPoints || 0,
+          actionsLoggedCount: userData?.actionsLogged || 0,
+          companyName: userData?.companyName || undefined,
+          customSquadName: userData?.customSquadName || undefined,
+        }
+      };
+
+      // Call Gemini API
+      const reply = await getAICoachResponse(userText, chatHistory.slice(0, -1), context);
+      setIsAiResponding(false);
+      streamMessage(reply);
+    } catch (err) {
+      console.warn('[AI Coach] Gemini API error, using local fallback:', err);
+      // Local fallback
       const reply = generateAiReply(userText);
       setIsAiResponding(false);
       streamMessage(reply);
-    }, 1200);
+    }
   };
 
   const generateAiReply = (query: string): string => {
@@ -193,7 +230,7 @@ export default function AICoachScreen() {
     }
     if (q.includes('weather') || q.includes('outside') || q.includes('today')) {
       if (localContext) {
-        return `Based on your local weather (${localContext.temperatureF}°F and ${localContext.condition}), I recommend ${localContext.condition === 'raining' || localContext.condition === 'stormy' ? 'focusing on reducing indoor energy consumption' : 'taking advantage of the weather by walking or biking instead of driving'}!`;
+        return `Based on your local weather (${localContext.temperatureC}°C and ${localContext.condition}), I recommend ${localContext.condition === 'raining' || localContext.condition === 'stormy' ? 'focusing on reducing household generator runs and harvesting rainwater' : 'taking advantage of the clear skies to walk short distances or rideshare instead of driving'}!`;
       } else {
         return `I don't have access to your local weather right now, but generally, try to match your actions to the season!`;
       }

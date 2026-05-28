@@ -23,7 +23,7 @@ export default function PrivacyPolicyScreen() {
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.lastUpdated}>Last Updated: April 2026</Text>
+          <Text style={styles.lastUpdated}>Last Updated: May 2026</Text>
 
           <Text style={styles.sectionTitle}>1. Information We Collect</Text>
           <Text style={styles.paragraph}>
@@ -79,7 +79,25 @@ export default function PrivacyPolicyScreen() {
             updating the "Last Updated" date.
           </Text>
 
-          <Text style={styles.sectionTitle}>8. Contact Us</Text>
+          <Text style={styles.sectionTitle}>9. Analytics & Third-Party Services</Text>
+          <Text style={styles.paragraph}>
+            To improve GreenLume, we use PostHog — a product analytics platform — to collect
+            anonymous, aggregated data about how users interact with the app. This includes:
+          </Text>
+          <Text style={styles.bullet}>• Habits logged (e.g. "ride_pool", "aesthetic_flask")</Text>
+          <Text style={styles.bullet}>• Onboarding completion or skip events</Text>
+          <Text style={styles.bullet}>• Premium paywall views and subscription events</Text>
+          <Text style={styles.paragraph}>
+            This data is used solely to understand which features are working and to improve
+            the app experience. It is NOT sold or shared with advertisers. You can opt out
+            of analytics at any time from the Privacy section in your Profile settings.
+          </Text>
+          <Text style={styles.paragraph}>
+            PostHog processes data in accordance with GDPR and applicable Nigerian data
+            protection regulations (NDPA 2023 / NDPR). Learn more at posthog.com/privacy.
+          </Text>
+
+          <Text style={styles.sectionTitle}>10. Contact Us</Text>
           <Text style={styles.paragraph}>
             If you have any questions about this Privacy Policy, please contact us at{' '}
             <Text style={styles.link}>support@greenlume.app</Text>

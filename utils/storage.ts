@@ -17,6 +17,7 @@ const KEYS = {
   CUSTOM_AVATAR: 'gs_custom_avatar',
   SYNC_PENDING: 'gs_sync_pending',
   IS_PREMIUM: 'gs_is_premium',
+  ANALYTICS_CONSENT: 'gs_analytics_consent',
 };
 
 export type PlantStage = 'seed' | 'sprout' | 'sapling' | 'tree' | 'withered';
@@ -127,6 +128,7 @@ export const storage = {
 
   async updateUserName(name: string): Promise<void> {
     await AsyncStorage.setItem(KEYS.USER_NAME, name);
+    await storage.syncToSupabase();
   },
 
   async getAuthMethod(): Promise<string> {
@@ -152,16 +154,24 @@ export const storage = {
     const data = await this.getUserData();
     data.isPremium = status;
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+    await storage.syncToSupabase();
   },
 
   /**
    * Restores user progress from Supabase after login.
    * This ensures points, streaks, and actions are not lost when signing back in.
    */
-  async restoreFromSupabase(): Promise<void> {
+  async restoreFromSupabase(force = false): Promise<void> {
     try {
       const { supabase, isSupabaseConfigured } = require('./supabase');
       if (!isSupabaseConfigured()) return;
+
+      // Only restore if force is true OR if there is no local user data yet
+      const localData = await AsyncStorage.getItem(KEYS.USER_DATA);
+      if (localData && !force) {
+        console.log('[Storage] Local data already exists. Skipping restore to protect local progress.');
+        return;
+      }
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -237,6 +247,8 @@ export const storage = {
 
   /**
    * Syncs local progress to Supabase leaderboard.
+   * On failure (e.g. offline), sets a SYNC_PENDING flag so the next
+   * app launch can retry automatically via flushPendingSync().
    */
   async syncToSupabase(): Promise<void> {
     try {
@@ -270,9 +282,30 @@ export const storage = {
       }, { onConflict: 'user_id' });
 
       if (error) throw error;
+
+      // Clear the pending flag on success
+      await AsyncStorage.removeItem(KEYS.SYNC_PENDING);
       console.log('[Storage] Deep progress synced to Supabase ✓');
     } catch (err) {
-      console.warn('[Storage] Sync failed (offline?):', err);
+      // Flag the failure so we retry next time the app opens with connectivity
+      await AsyncStorage.setItem(KEYS.SYNC_PENDING, 'true');
+      console.warn('[Storage] Sync failed (offline?). Will retry on next launch.', err);
+    }
+  },
+
+  /**
+   * Called on app startup. If a previous sync failed (offline),
+   * this retries it silently in the background.
+   */
+  async flushPendingSync(): Promise<void> {
+    try {
+      const pending = await AsyncStorage.getItem(KEYS.SYNC_PENDING);
+      if (pending === 'true') {
+        console.log('[Storage] Pending sync detected. Retrying...');
+        await storage.syncToSupabase();
+      }
+    } catch (err) {
+      console.warn('[Storage] flushPendingSync error:', err);
     }
   },
 
@@ -456,6 +489,7 @@ export const storage = {
     const data = await storage.getUserData();
     const updated = { ...data, ...partial };
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(updated));
+    await storage.syncToSupabase();
   },
 
   async earnBadges(badgeIds: string[]): Promise<void> {
@@ -463,6 +497,7 @@ export const storage = {
     const updated = [...new Set([...data.earnedBadges, ...badgeIds])];
     data.earnedBadges = updated;
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+    await storage.syncToSupabase();
   },
 
   // --- Game Engine Mechanics ---
@@ -472,6 +507,7 @@ export const storage = {
       data.coins -= 50;
       data.inventorySeeds += 1;
       await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+      await storage.syncToSupabase();
       return true;
     }
     return false;
@@ -491,6 +527,7 @@ export const storage = {
         waterCountAtStage: 0,
       });
       await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+      await storage.syncToSupabase();
       return true;
     }
     return false;
@@ -523,6 +560,7 @@ export const storage = {
 
         data.activeForest[pIdx] = plant;
         await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+        await storage.syncToSupabase();
         return true;
       }
     }
@@ -543,6 +581,7 @@ export const storage = {
     }));
 
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+    await storage.syncToSupabase();
   },
 
   // --- Action Counts ---
@@ -601,7 +640,19 @@ export const storage = {
       KEYS.SUPABASE_META,
       KEYS.IS_PREMIUM,
       KEYS.CUSTOM_AVATAR,
+      KEYS.SYNC_PENDING,
     ]);
+  },
+
+  // --- Analytics Consent ---
+  async getAnalyticsConsent(): Promise<boolean> {
+    const value = await AsyncStorage.getItem(KEYS.ANALYTICS_CONSENT);
+    // Default to true (opted in) if no preference has been set
+    return value !== 'false';
+  },
+
+  async setAnalyticsConsent(enabled: boolean): Promise<void> {
+    await AsyncStorage.setItem(KEYS.ANALYTICS_CONSENT, enabled ? 'true' : 'false');
   },
 
   // --- Custom Squads (Earth+ Feature) ---
@@ -611,6 +662,7 @@ export const storage = {
     data.customSquadName = name;
     data.customSquadCode = code;
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+    await storage.syncToSupabase();
     return data;
   },
 
@@ -619,6 +671,7 @@ export const storage = {
     data.customSquadName = name;
     data.customSquadCode = code;
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+    await storage.syncToSupabase();
     return data;
   },
 
@@ -627,6 +680,7 @@ export const storage = {
     data.customSquadName = null;
     data.customSquadCode = null;
     await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+    await storage.syncToSupabase();
     return data;
   },
 

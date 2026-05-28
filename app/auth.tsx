@@ -69,7 +69,7 @@ export default function AuthScreen() {
         if (error) throw error;
         
         await storage.setAuthenticated(data.user?.email?.split('@')[0] || 'User', 'email', data.user!.id);
-        await storage.restoreFromSupabase();
+        await storage.restoreFromSupabase(true);
         Toast.show({ type: 'success', text1: 'Welcome back! 🌿' });
         router.replace('/(tabs)'); // Route to tabs directly
       } else {
