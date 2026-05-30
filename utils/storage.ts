@@ -18,6 +18,7 @@ const KEYS = {
   SYNC_PENDING: 'gs_sync_pending',
   IS_PREMIUM: 'gs_is_premium',
   ANALYTICS_CONSENT: 'gs_analytics_consent',
+  NOTIFICATIONS_READ: 'gs_notifications_read',
 };
 
 export type PlantStage = 'seed' | 'sprout' | 'sapling' | 'tree' | 'withered';
@@ -94,7 +95,21 @@ function getTodayString(): string {
   return new Date().toISOString().split('T')[0];
 }
 
+/** Celebration payload set by addPoints when a badge/rank event occurs.
+ *  The log screen reads this after save completes and navigates to /levelup. */
+export type CelebrationPayload = {
+  type: 'badge' | 'rank';
+  title: string;
+  emoji: string;
+  subtitle: string;
+  points: string;
+  rankName: string;
+};
+
 export const storage = {
+  /** Set by addPoints when a badge unlock or rank-up occurs. Consumed by log.tsx. */
+  _pendingCelebration: null as CelebrationPayload | null,
+
   // --- Auth ---
   async setAuthenticated(name: string, method: string, userId: string): Promise<void> {
     await AsyncStorage.multiSet([
@@ -350,23 +365,33 @@ export const storage = {
         hasChanges = true;
       }
 
-      data.activeForest = data.activeForest.map(plant => {
+      const prevWitheredCount = data.activeForest.filter(p => p.stage === 'withered').length;
 
-        if (plant.stage === 'withered') return plant; // Already dead
+      data.activeForest = data.activeForest.map(plant => {
+        if (plant.stage === 'withered') return plant;
         const lastW = new Date(plant.lastWatered);
         const hoursPassed = Math.abs(now.getTime() - lastW.getTime()) / (1000 * 60 * 60);
-        
-        // Every 24 hours, drop water by 50.
-        // If > 48 hours without water, it dies.
         if (hoursPassed >= 48) {
           hasChanges = true;
-          return { ...plant, stage: 'withered', waterLevel: 0 };
+          return { ...plant, stage: 'withered' as const, waterLevel: 0 };
         } else if (hoursPassed >= 24 && plant.waterLevel > 50) {
           hasChanges = true;
           return { ...plant, waterLevel: plant.waterLevel - 50 };
         }
         return plant;
       });
+
+      // Notify when plants newly wither due to time passage
+      const newWitheredCount = data.activeForest.filter(p => p.stage === 'withered').length;
+      if (newWitheredCount > prevWitheredCount) {
+        const { notificationStore } = require('./inAppNotifications');
+        notificationStore.add({
+          type: 'plant_withered',
+          icon: '🥀',
+          title: 'A plant has withered!',
+          body: 'One of your nursery plants ran out of water. Log daily green actions to earn droplets and plant new seeds to restore your forest.',
+        }).catch(() => {});
+      }
 
       // Reset today's actions if it's a new day
       const today = getTodayString();
@@ -399,32 +424,38 @@ export const storage = {
     const data = await storage.getUserData();
     const today = getTodayString();
     const weekKey = getWeekKey();
-    
+
+    // Snapshot BEFORE mutation — used to diff which events are genuinely new
+    const prevSnapshot: Partial<UserData> = {
+      totalPoints: data.totalPoints,
+      currentStreak: data.currentStreak,
+      earnedBadges: [...data.earnedBadges],
+      activeForest: data.activeForest.map(p => ({ ...p })),
+      todayActions: [...data.todayActions],
+    };
+
     // Update streak
     if (data.lastLogDate === today) {
-      // Already logged today, just add points
+      // Already logged today — just add points, don't increment streak again
     } else if (data.lastLogDate === getPreviousDay()) {
-      // Consecutive day
       data.currentStreak += 1;
     } else {
-      // Missed a day or first time logging
       data.currentStreak = 1;
     }
 
-    // Track longest streak
     if (data.currentStreak > data.longestStreak) {
       data.longestStreak = data.currentStreak;
     }
 
     data.totalPoints += points;
     data.todayPoints += points;
-    data.coins += points; // 1 point = 1 coin
-    data.waterDroplets += actionIds.length; // 1 action = 1 water droplet
+    data.coins += points;
+    data.waterDroplets += actionIds.length;
     data.actionsLogged += actionIds.length;
     data.lastLogDate = today;
     data.todayActions = [...new Set([...data.todayActions, ...actionIds])];
 
-    // FIX #5: Track which days each action was logged this week
+    // Track which days each action was logged this week
     if (!data.weeklyActionLog[weekKey]) data.weeklyActionLog[weekKey] = {};
     for (const id of actionIds) {
       if (!data.weeklyActionLog[weekKey][id]) data.weeklyActionLog[weekKey][id] = [];
@@ -434,17 +465,62 @@ export const storage = {
     }
     data.lastWeekKey = weekKey;
 
-    await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
-
-    // Optional: Automatic background sync
-    storage.syncToSupabase();
-
-    // Increment per-action counts for badge tracking
+    // Update per-action counts for badge tracking
     const counts = await storage.getActionCounts();
     for (const id of actionIds) {
       counts[id] = (counts[id] || 0) + 1;
     }
     await AsyncStorage.setItem(KEYS.ACTION_COUNTS, JSON.stringify(counts));
+
+    // ── Award badges automatically ──────────────────────────────────────────
+    const { checkBadgeUnlocks } = require('./badges');
+    const newlyUnlocked = checkBadgeUnlocks(data, counts);
+    const prevRankName = require('./badges').getRankInfo(prevSnapshot.totalPoints!).name;
+    const newRankName  = require('./badges').getRankInfo(data.totalPoints).name;
+
+    if (newlyUnlocked.length > 0) {
+      for (const badge of newlyUnlocked) {
+        if (!data.earnedBadges.includes(badge.id)) {
+          data.earnedBadges.push(badge.id);
+          data.totalPoints += badge.points;
+          data.coins += badge.points;
+        }
+      }
+    }
+
+    await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
+    storage.syncToSupabase();
+
+    // ── Generate smart notifications ────────────────────────────────────────
+    const { generateSmartNotifications } = require('./inAppNotifications');
+    generateSmartNotifications(data, prevSnapshot, counts).catch(() => {});
+
+    // ── Navigate to celebration screen for first badge or rank-up ───────────
+    // Emitted via a module-level event so any mounted component can listen.
+    // The root layout in app/_layout.tsx listens and calls router.push().
+    if (newlyUnlocked.length > 0) {
+      const badge = newlyUnlocked[0]; // Celebrate the first new badge
+      storage._pendingCelebration = {
+        type: 'badge',
+        title: `Badge Unlocked: ${badge.name}!`,
+        emoji: badge.icon === 'leaf' ? '🌿' : badge.icon === 'flame' ? '🔥' : badge.icon === 'trophy' ? '🏆' : badge.icon === 'star' ? '⭐' : badge.icon === 'ribbon' ? '🎖️' : '🏅',
+        subtitle: badge.description,
+        points: String(badge.points),
+        rankName: newRankName,
+      };
+    } else if (prevRankName !== newRankName) {
+      const rankInfo = require('./badges').getRankInfo(data.totalPoints);
+      storage._pendingCelebration = {
+        type: 'rank',
+        title: `You're now a ${newRankName}!`,
+        emoji: rankInfo.emoji,
+        subtitle: rankInfo.nextPoints > 0
+          ? `Only ${(rankInfo.nextPoints - data.totalPoints).toLocaleString()} points to ${rankInfo.nextRank}!`
+          : 'You\'ve reached the highest rank — Eco Legend!',
+        points: '0',
+        rankName: newRankName,
+      };
+    }
 
     return data;
   },
@@ -744,6 +820,20 @@ export const storage = {
       user: { name, authMethod: method, joinDate },
       stats: data,
     };
+  },
+  // --- Notifications Read State ---
+  async areNotificationsRead(): Promise<boolean> {
+    const val = await AsyncStorage.getItem(KEYS.NOTIFICATIONS_READ);
+    return val === 'true';
+  },
+
+  async markNotificationsRead(): Promise<void> {
+    await AsyncStorage.setItem(KEYS.NOTIFICATIONS_READ, 'true');
+  },
+
+  // Call this when a genuinely new notification arrives (badge earned, streak at risk, etc.)
+  async resetNotificationsRead(): Promise<void> {
+    await AsyncStorage.removeItem(KEYS.NOTIFICATIONS_READ);
   },
 };
 

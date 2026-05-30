@@ -94,7 +94,7 @@ export default function AICoachScreen() {
       };
     
       loadContextAndGreet();
-    }, [userData?.isPremium, userData?.lastFreeCoachTipDate])
+    }, [userData?.currentStreak, userData?.actionsLogged])
   );
 
   // Typewriter effect generator
@@ -105,20 +105,25 @@ export default function AICoachScreen() {
     let index = 0;
     let currentText = '';
     const interval = setInterval(() => {
-      currentText += fullText.charAt(index);
+      // Batch 4 characters per tick — same visual speed, ~75% fewer setState calls
+      const chunkSize = 4;
+      for (let i = 0; i < chunkSize && index < fullText.length; i++, index++) {
+        currentText += fullText.charAt(index);
+      }
       setMessages((prev) => 
         prev.map((msg) => (msg.id === messageId ? { ...msg, text: currentText } : msg))
       );
-      index++;
-      scrollViewRef.current?.scrollToEnd({ animated: true });
+      // Only scroll every 6th tick to reduce scroll jank on budget Android devices
+      if (index % 6 === 0) scrollViewRef.current?.scrollToEnd({ animated: true });
 
       if (index >= fullText.length) {
         clearInterval(interval);
         setMessages((prev) => 
           prev.map((msg) => (msg.id === messageId ? { ...msg, isStreaming: false } : msg))
         );
+        scrollViewRef.current?.scrollToEnd({ animated: true });
       }
-    }, 15);
+    }, 20); // 20ms × 4 chars = ~200 chars/sec, still feels fast and types smoothly
   };
 
   const handleSend = async () => {
@@ -184,13 +189,13 @@ export default function AICoachScreen() {
       return `Hello! How can I help you on your sustainability journey today? Ask me about your points, how to improve your streak, or how to get started on team challenges!`;
     }
     if (q.includes('point') || q.includes('score') || q.includes('lume')) {
-      return `You currently have ${pts} GreenLume points! 🌟\n\nYou can earn more points by logging high-impact actions like "Public Transport" (+25 pts) or "Plant-Based Meals" (+20 pts). If you have Earth+ Premium, completing weekly challenges gives you an extra 2x multiplier!`;
+      return `You currently have ${pts} GreenLume points! 🌟\n\nYou can earn more points by logging high-impact actions like "Public Transit" (+25 pts), "Plant-Based Meals" (+20 pts), or "Reusable Bag" (+15 pts). Completing weekly challenges also rewards bonus points — every logged action counts!`;
     }
     if (q.includes('streak') || q.includes('day') || q.includes('fire')) {
-      return `Your current streak is ${streak} days. 🔥\n\nTo build a strong habit, try setting a daily reminder in the Profile settings. Logging just one action every day keeps the momentum going. Remember, consistency is key to reducing carbon footprint!`;
+      return `Your current streak is ${streak} days. 🔥\n\nTo build a strong habit, try setting a daily reminder in the Profile settings. Logging just one action every day keeps the momentum going. Remember, consistency is the key to reducing your carbon footprint!`;
     }
     if (q.includes('squad') || q.includes('team') || q.includes('company') || q.includes('friend')) {
-      return `Competing together makes saving the planet fun! 👥\n\nAs a GreenLume member, you are currently contributing to ${name}. If you are an Earth+ Premium subscriber, you can create your own **Custom Squads** on the Teams page to compete directly with friends, family, or custom circles!`;
+      return `Competing together makes saving the planet fun! 👥\n\nAs a GreenLume member, you can create your own **Custom Squads** completely free — head to the Teams tab, generate an invite code, and share it with friends, family, or colleagues to compete for the top spot on the leaderboard!`;
     }
     if (q.includes('water') || q.includes('plant') || q.includes('nursery') || q.includes('seed')) {
       return `Your Virtual Nursery is a direct reflection of your real-world impact! 💧\n\nFor every green action you log, you earn Water Droplets. Use them to water your plants before they dry up. Growing a mature tree earns you extra coins to buy more seeds!`;
@@ -238,39 +243,7 @@ export default function AICoachScreen() {
         contentContainerStyle={styles.scrollContent}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
       >
-        {showPaywall ? (
-          <View style={styles.paywallContainer}>
-            <View style={styles.lockIconContainer}>
-              <Ionicons name="lock-closed" size={48} color="#f59e0b" />
-            </View>
-            <Text style={styles.paywallTitle}>Free Tip Used</Text>
-            <Text style={styles.paywallDesc}>You've used your 1 free Eco-Coach tip for today. Upgrade to Earth+ for unlimited AI insights and coaching!</Text>
-            
-            <TouchableOpacity 
-              style={styles.upgradeButton}
-              onPress={() => router.push('/premium')}
-            >
-              <LinearGradient
-                colors={['#f59e0b', '#d97706']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.upgradeGradient}
-              >
-                <Text style={styles.upgradeText}>Unlock Earth+ Now ($1.99/mo)</Text>
-                <Ionicons name="arrow-forward" size={20} color="#fff" />
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        ) : (
           <Animated.View style={{ opacity: fadeAnim, gap: 16 }}>
-            
-            {!userData?.isPremium && (
-              <View style={styles.freeTipBanner}>
-                <Ionicons name="gift-outline" size={16} color={Colors.primary} />
-                <Text style={styles.freeTipText}>You are using your 1 free daily tip.</Text>
-              </View>
-            )}
-
             {/* Messages Thread */}
             {messages.map((msg) => {
               const isAi = msg.sender === 'ai';
@@ -305,7 +278,12 @@ export default function AICoachScreen() {
 
             {/* AI Thinking Bubble */}
             {isAiResponding && (
-              <View style={styles.chatContainer}>
+              <View 
+                style={styles.chatContainer}
+                accessible={true}
+                accessibilityLabel="Eco-Coach is thinking, please wait"
+                accessibilityLiveRegion="polite"
+              >
                 <View style={styles.avatarContainer}>
                   <Text style={styles.avatarEmoji}>🤖</Text>
                 </View>
@@ -334,50 +312,60 @@ export default function AICoachScreen() {
             )}
 
           </Animated.View>
-        )}
       </ScrollView>
 
       {/* Input area */}
       <View style={styles.inputArea}>
-        {/* FIX #32: Overlay to make the paywall state unmistakably clear */}
-        {showPaywall ? (
-          <TouchableOpacity
-            style={[styles.inputBox, { backgroundColor: '#fef3c7', borderColor: '#f59e0b', justifyContent: 'center', alignItems: 'center', paddingVertical: 16 }]}
-            onPress={() => router.push('/premium')}
-            accessibilityLabel="Upgrade to Earth+ to send unlimited messages"
-            accessibilityRole="button"
-          >
-            <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.sm, color: '#d97706' }}>
-              🔒 Upgrade to Earth+ to continue
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.inputBox}>
-            <TextInput
-              style={styles.textInput}
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder="Ask your Eco-Coach a question..."
-              placeholderTextColor={Colors.textMuted}
-              editable={!isAiResponding}
-              onSubmitEditing={handleSend}
-              returnKeyType="send"
-              accessibilityLabel="Message input"
-            />
-            <TouchableOpacity 
-              onPress={handleSend}
-              disabled={isAiResponding || !inputText.trim()}
-              accessibilityLabel="Send message"
-              accessibilityRole="button"
-            >
-              <Ionicons 
-                name="send" 
-                size={20} 
-                color={!inputText.trim() || isAiResponding ? Colors.neutral300 : Colors.primary} 
-              />
-            </TouchableOpacity>
+        {/* Suggested prompts — shown when conversation is empty */}
+        {messages.length === 0 && !isAiResponding && (
+          <View style={styles.promptChipsRow}>
+            {[
+              { label: '🔥 Streak tips',       text: 'How do I maintain a long streak?' },
+              { label: '🌱 Earn more points',  text: 'What are the best ways to earn GreenLume points?' },
+              { label: '🌍 My CO₂ impact',   text: 'Explain my CO₂ impact so far' },
+              { label: '👥 Custom squads',    text: 'How do custom squads work?' },
+            ].map((chip) => (
+              <TouchableOpacity
+                key={chip.label}
+                style={styles.promptChip}
+                onPress={() => {
+                  setInputText(chip.text);
+                }}
+                activeOpacity={0.8}
+                accessibilityLabel={`Suggested: ${chip.text}`}
+                accessibilityRole="button"
+              >
+                <Text style={styles.promptChipText}>{chip.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
+
+        <View style={styles.inputBox}>
+          <TextInput
+            style={styles.textInput}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Ask your Eco-Coach a question..."
+            placeholderTextColor={Colors.textMuted}
+            editable={!isAiResponding}
+            onSubmitEditing={handleSend}
+            returnKeyType="send"
+            accessibilityLabel="Type a message to your Eco-Coach"
+          />
+          <TouchableOpacity 
+            onPress={handleSend}
+            disabled={isAiResponding || !inputText.trim()}
+            accessibilityLabel="Send message"
+            accessibilityRole="button"
+          >
+            <Ionicons 
+              name="send" 
+              size={20} 
+              color={!inputText.trim() || isAiResponding ? Colors.neutral300 : Colors.primary} 
+            />
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -421,21 +409,7 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 40,
   },
-  freeTipBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(46, 125, 50, 0.1)',
-    padding: 10,
-    borderRadius: 12,
-    marginBottom: 8,
-    gap: 6,
-    alignSelf: 'flex-start',
-  },
-  freeTipText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontSize: Typography.fontSize.xs,
-    color: Colors.primary,
-  },
+
   chatContainer: {
     flexDirection: 'row',
     marginBottom: 12,
@@ -532,49 +506,25 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     paddingVertical: 4,
   },
-  paywallContainer: {
-    alignItems: 'center',
-    paddingTop: 40,
-  },
-  lockIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  paywallTitle: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.xl,
-    color: Colors.textPrimary,
-    marginBottom: 12,
-  },
-  paywallDesc: {
-    fontFamily: Typography.fontFamily.regular,
-    fontSize: Typography.fontSize.md,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 30,
-    paddingHorizontal: 20,
-  },
-  upgradeButton: {
-    width: '100%',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  upgradeGradient: {
+  promptChipsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
+    flexWrap: 'wrap',
     gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
   },
-  upgradeText: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.md,
-    color: Colors.white,
+  promptChip: {
+    backgroundColor: Colors.primary90,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  promptChipText: {
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.primary,
   },
 });
+

@@ -8,6 +8,7 @@ import Toast from 'react-native-toast-message';
 import { storage } from '../utils/storage';
 import { supabase } from '../utils/supabase';
 import { signInWithGoogle } from '../utils/googleAuth';
+import { savePendingReferralCode, redeemReferralCode } from '../utils/referral';
 import { Colors } from '../constants/colors';
 import { Typography, Shadows } from '../constants/typography';
 
@@ -17,6 +18,7 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [emailError, setEmailError] = useState('');
@@ -75,9 +77,22 @@ export default function AuthScreen() {
       } else {
         const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
         if (error) throw error;
-        
+
         await storage.setAuthenticated(data.user?.email?.split('@')[0] || 'User', 'email', data.user!.id);
-        Toast.show({ type: 'success', text1: 'Account created! 🎉', text2: 'Welcome to GreenLume!' });
+
+        // Redeem referral code if one was entered
+        if (referralCode.trim()) {
+          await savePendingReferralCode(referralCode.trim());
+          const redeemed = await redeemReferralCode(data.user!.id);
+          Toast.show({
+            type: redeemed ? 'success' : 'info',
+            text1: redeemed ? 'Referral code applied! +50 pts 🎉' : 'Invalid referral code',
+            text2: redeemed ? 'Both you and your friend earned bonus GreenLume Points!' : 'The code you entered was not recognised.',
+          });
+        } else {
+          Toast.show({ type: 'success', text1: 'Account created! 🎉', text2: 'Welcome to GreenLume!' });
+        }
+
         router.replace('/onboarding');
       }
     } catch (err: any) {
@@ -158,6 +173,22 @@ export default function AuthScreen() {
               {!!passwordError && <Text style={styles.fieldError}>{passwordError}</Text>}
               {!isLogin && !passwordError && (
                 <Text style={styles.passwordHint}>Minimum 8 characters</Text>
+              )}
+
+              {/* Referral code — only shown during signup */}
+              {!isLogin && (
+                <View style={styles.referralWrap}>
+                  <Ionicons name="gift-outline" size={20} color={Colors.primary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Invite code (optional)"
+                    placeholderTextColor={Colors.neutral400}
+                    autoCapitalize="characters"
+                    value={referralCode}
+                    onChangeText={setReferralCode}
+                    accessibilityLabel="Referral invite code"
+                  />
+                </View>
               )}
 
               <TouchableOpacity
@@ -261,4 +292,5 @@ const styles = StyleSheet.create({
   link: { color: Colors.primary, fontFamily: Typography.fontFamily.medium },
   fieldError: { fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.xs, color: Colors.error, marginTop: -8 },
   passwordHint: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: Colors.textMuted, marginTop: -8 },
+  referralWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary90, borderRadius: 14, borderWidth: 1.5, borderColor: Colors.primary, paddingHorizontal: 16, height: 54 },
 });

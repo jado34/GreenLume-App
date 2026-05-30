@@ -130,19 +130,18 @@ export default function ForestsScreen() {
           <Text style={styles.headerTitle}>Community Forests</Text>
           <Text style={styles.headerSub}>Join forces and grow together</Text>
           
-          {/* FIX #12: Mark global stats as placeholder until real data is connected */}
+          {/* Real user-derived impact stats */}
           <View style={styles.globalStats}>
             <View style={styles.globalStatItem}>
-              <Text style={styles.globalStatVal}>125k</Text>
-              <Text style={styles.globalStatLab}>Active Users</Text>
+              <Text style={styles.globalStatVal}>{Math.max(1, Math.floor(points / 50))}</Text>
+              <Text style={styles.globalStatLab}>My Trees Saved</Text>
             </View>
             <View style={styles.globalStatDivider} />
             <View style={styles.globalStatItem}>
-              <Text style={styles.globalStatVal}>1.2M</Text>
-              <Text style={styles.globalStatLab}>Trees Saved</Text>
+              <Text style={styles.globalStatVal}>{((points / 100) * 0.8).toFixed(1)}kg</Text>
+              <Text style={styles.globalStatLab}>My CO₂ Saved</Text>
             </View>
           </View>
-          <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginTop: 6 }}>Live data coming soon</Text>
         </LinearGradient>
 
         {/* My Forest (Selection) */}
@@ -189,9 +188,14 @@ export default function ForestsScreen() {
                   <Text style={{ fontSize: 32 }}>{forest.emoji}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.forestName}>
-                    {forest.name} {forest.isActive && <Text style={{ color: '#0ea5e9', fontSize: 10, fontFamily: Typography.fontFamily.bold }}> (ACTIVE SQUAD)</Text>}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 2 }}>
+                    <Text style={styles.forestName}>{forest.name}</Text>
+                    {forest.isActive && (
+                      <View style={{ backgroundColor: '#e0f2fe', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                        <Text style={{ color: '#0ea5e9', fontSize: 10, fontFamily: Typography.fontFamily.bold }}>ACTIVE</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.forestMeta}>
                     {forest.isCustom 
                       ? `${forest.members} member${forest.members !== 1 ? 's' : ''} • ${forest.trees} tree${forest.trees !== 1 ? 's' : ''} saved`
@@ -230,8 +234,8 @@ export default function ForestsScreen() {
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             />
             <View style={styles.bannerContent}>
-              <Text style={styles.bannerTitle}>Planetary Pulse 🌍</Text>
-              <Text style={styles.bannerText}>Today, the GreenLume community avoided 4,200kg of CO₂.</Text>
+              <Text style={styles.bannerTitle}>Your Personal Impact 🌍</Text>
+              <Text style={styles.bannerText}>You've personally saved an estimated {((points / 100) * 0.8).toFixed(1)}kg of CO₂ through your logged actions. Every habit counts!</Text>
               <TouchableOpacity style={styles.bannerBtn} onPress={() => router.push('/nursery' as any)}>
                 <Text style={styles.bannerBtnText}>View My Contribution</Text>
                 <Ionicons name="arrow-forward" size={16} color={Colors.white} />

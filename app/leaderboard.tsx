@@ -594,29 +594,6 @@ const styles = StyleSheet.create({
     marginTop: 40,
     overflow: 'hidden',
   },
-  premiumLockGradient: {
-    padding: 24,
-    width: width - 32 - 48, // Accommodate scroll margins
-    alignItems: 'center',
-    borderRadius: 24,
-    margin: -24, // bleed layout colors
-  },
-  lockBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(251, 191, 36, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  lockBadgeText: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: 10,
-    color: '#fbbf24',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
   stateIconContainer: {
     width: 90,
     height: 90,

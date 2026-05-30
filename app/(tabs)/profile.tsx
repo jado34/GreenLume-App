@@ -14,15 +14,13 @@ import { supabase, isSupabaseConfigured } from '../../utils/supabase';
 import { getRankInfo, BADGES } from '../../utils/badges';
 import { notifications } from '../../utils/notifications';
 import { analytics } from '../../utils/analytics';
+import { setReminderEnabled } from '../../utils/pushNotifications';
+import { getMyReferralCode, shareReferralCode } from '../../utils/referral';
 import { Colors } from '../../constants/colors';
 import { Typography, Shadows } from '../../constants/typography';
 import { getDynamicTheme } from '../../utils/theme';
+import { getAvatarColor } from '../../utils/avatar';
 
-const AVATAR_COLORS = ['#2e7d32','#1565c0','#6a1b9a','#c62828','#00838f','#e65100','#00695c'];
-function getAvatarColor(name: string): string {
-  const idx = (name.charCodeAt(0) || 71) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[idx];
-}
 
 interface SettingItem {
   icon: string;
@@ -40,6 +38,7 @@ export default function ProfileScreen() {
   const [joinDate, setJoinDate] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
+  const [referralCode, setReferralCode] = useState('');
   const [customAvatar, setCustomAvatar] = useState<string | null>(null);
 
   // Edit Profile modal state
@@ -65,6 +64,9 @@ export default function ProfileScreen() {
       setNotificationsEnabled(notifEnabled);
       setCustomAvatar(avatar);
       setAnalyticsEnabled(analyticsConsent);
+      // Load referral code (generates one if this is the first time)
+      const code = await getMyReferralCode(name);
+      setReferralCode(code);
     };
     load();
   }, []));
@@ -192,11 +194,12 @@ export default function ProfileScreen() {
     const newValue = !notificationsEnabled;
     setNotificationsEnabled(newValue);
     await notifications.setEnabled(newValue);
+    // Wire to real push notification scheduler
+    const currentStreak = userData?.currentStreak ?? 0;
+    await setReminderEnabled(newValue, currentStreak);
     if (newValue) {
-      await notifications.scheduleDailyReminder();
-      Toast.show({ type: 'success', text1: 'Reminders On!', text2: "You'll get daily reminders at 9 AM." });
+      Toast.show({ type: 'success', text1: 'Reminders On! 🔔', text2: "You'll get a daily nudge at 8 PM." });
     } else {
-      await notifications.cancelAll();
       Toast.show({ type: 'info', text1: 'Reminders Off', text2: 'Daily reminders disabled.' });
     }
   };
@@ -256,37 +259,44 @@ export default function ProfileScreen() {
     <View style={styles.settingsSection}>
       <Text style={styles.settingsSectionTitle}>{title.toUpperCase()}</Text>
       <View style={styles.settingsCard}>
-        {items.map((item, i) => (
-          <TouchableOpacity
-            key={item.label}
-            style={[styles.settingsRow, i < items.length - 1 && styles.settingsRowBorder]}
-            // FIX #28: Remove disabled prop — the whole row should always be tappable.
-            // The Switch inside handles its own interaction for toggle items.
-            onPress={item.onPress}
-            activeOpacity={0.85}
-            accessibilityLabel={`${item.label}: ${item.desc}`}
-            accessibilityRole={item.switch ? 'switch' : 'button'}
-            accessibilityState={item.switch ? { checked: item.label === 'Daily Reminder' ? notificationsEnabled : false } : {}}
-          >
-            <View style={[styles.settingsIcon, item.color ? { backgroundColor: `${item.color}15` } : {}]}>
-              <Ionicons name={item.icon as any} size={20} color={item.color ?? Colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.settingsLabel, item.color ? { color: item.color } : {}]}>{item.label}</Text>
-              <Text style={styles.settingsDesc}>{item.desc}</Text>
-            </View>
-            {item.switch ? (
-              <Switch
-                value={item.label === 'Daily Reminder' ? notificationsEnabled : item.label === 'Usage Analytics' ? analyticsEnabled : false}
-                onValueChange={item.label === 'Daily Reminder' ? toggleNotifications : item.label === 'Usage Analytics' ? toggleAnalytics : undefined}
-                trackColor={{ false: Colors.neutral300, true: Colors.primary }}
-                thumbColor={Colors.white}
-              />
-            ) : (
-              <Ionicons name="chevron-forward" size={16} color={Colors.neutral300} />
-            )}
-          </TouchableOpacity>
-        ))}
+        {items.map((item, i) => {
+          // Toggle rows use View to prevent double-fire on Android
+          // (Switch onValueChange + parent TouchableOpacity onPress both firing)
+          const Wrapper = item.switch ? View : TouchableOpacity;
+          const wrapperProps = item.switch
+            ? { key: item.label, style: [styles.settingsRow, i < items.length - 1 && styles.settingsRowBorder] }
+            : {
+                key: item.label,
+                style: [styles.settingsRow, i < items.length - 1 && styles.settingsRowBorder],
+                onPress: item.onPress,
+                activeOpacity: 0.85,
+                accessibilityLabel: `${item.label}: ${item.desc}`,
+                accessibilityRole: 'button' as const,
+              };
+          return (
+            <Wrapper {...(wrapperProps as any)}>
+              <View style={[styles.settingsIcon, item.color ? { backgroundColor: `${item.color}15` } : {}]}>
+                <Ionicons name={item.icon as any} size={20} color={item.color ?? Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.settingsLabel, item.color ? { color: item.color } : {}]}>{item.label}</Text>
+                <Text style={styles.settingsDesc}>{item.desc}</Text>
+              </View>
+              {item.switch ? (
+                <Switch
+                  value={item.label === 'Daily Reminder' ? notificationsEnabled : item.label === 'Usage Analytics' ? analyticsEnabled : false}
+                  onValueChange={item.label === 'Daily Reminder' ? toggleNotifications : item.label === 'Usage Analytics' ? toggleAnalytics : undefined}
+                  trackColor={{ false: Colors.neutral300, true: Colors.primary }}
+                  thumbColor={Colors.white}
+                  accessibilityLabel={`${item.label}: ${item.desc}`}
+                  accessibilityRole="switch"
+                />
+              ) : (
+                <Ionicons name="chevron-forward" size={16} color={Colors.neutral300} />
+              )}
+            </Wrapper>
+          );
+        })}
       </View>
     </View>
   );
@@ -297,7 +307,9 @@ export default function ProfileScreen() {
         {/* Premium Header */}
         <LinearGradient colors={[theme.primaryDark, theme.primary]} style={styles.header}>
           <View style={styles.authBadge}>
-            <Text style={styles.authBadgeText}>{authMethod.charAt(0).toUpperCase() + authMethod.slice(1)} Mode</Text>
+            <Text style={styles.authBadgeText}>
+              {authMethod ? `${authMethod.charAt(0).toUpperCase() + authMethod.slice(1)} Account` : ''}
+            </Text>
           </View>
 
           {/* Tappable Avatar */}
@@ -309,7 +321,7 @@ export default function ProfileScreen() {
             accessibilityRole="imagebutton"
           >
             {customAvatar ? (
-              <Image source={{ uri: customAvatar }} style={styles.avatarImage} />
+            <Image source={{ uri: customAvatar }} style={styles.avatarImage} resizeMode="cover" />
             ) : (
               <Text style={styles.avatarText}>{initials}</Text>
             )}
@@ -327,7 +339,7 @@ export default function ProfileScreen() {
         {/* Stats Grid */}
         <View style={styles.statsGrid}>
           {[
-            { icon: 'trophy', label: 'GreenLume', value: pts.toLocaleString(), color: Colors.primary, bg: Colors.primary90 },
+            { icon: 'trophy', label: 'Points', value: pts.toLocaleString(), color: Colors.primary, bg: Colors.primary90 },
             { icon: 'flash', label: 'Streak', value: `${streak}d`, color: '#f59e0b', bg: '#fef3c7' },
             { icon: 'trending-up', label: 'Actions', value: actions.toLocaleString(), color: Colors.info, bg: Colors.infoLight },
           ].map((stat) => (
@@ -363,7 +375,36 @@ export default function ProfileScreen() {
         {renderSection('App', appSettings)}
         {renderSection('Data & Privacy', dangerSettings)}
 
-        {/* Premium Banner removed - all features are free */}
+        {/* Invite a Friend card */}
+        <View style={[styles.section, { marginBottom: 8 }]}>
+          <LinearGradient
+            colors={[Colors.primary, '#388e3c']}
+            style={styles.inviteCard}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.inviteTitle}>Invite a Friend 🌍</Text>
+              <Text style={styles.inviteDesc}>You both earn +50 GreenLume Points when they join!</Text>
+              <View style={styles.inviteCodeRow}>
+                <Text style={styles.inviteCode}>{referralCode}</Text>
+                <TouchableOpacity
+                  style={styles.inviteShareBtn}
+                  onPress={async () => {
+                    const name = await storage.getUserName();
+                    await shareReferralCode(referralCode, name);
+                  }}
+                  accessibilityLabel={`Share your invite code ${referralCode}`}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="share-social" size={16} color={Colors.primary} />
+                  <Text style={styles.inviteShareText}>Share</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <Text style={{ fontSize: 48 }}>🌱</Text>
+          </LinearGradient>
+        </View>
 
         <View style={[styles.section, { marginBottom: 24 }]}>
           <TouchableOpacity 
@@ -390,7 +431,7 @@ export default function ProfileScreen() {
               {/* Avatar preview */}
               <TouchableOpacity style={[styles.editAvatar, !customAvatar && { backgroundColor: avatarColor }]} onPress={pickImage} activeOpacity={0.8}>
                 {customAvatar ? (
-                  <Image source={{ uri: customAvatar }} style={styles.editAvatarImage} />
+            <Image source={{ uri: customAvatar }} style={styles.editAvatarImage} resizeMode="cover" />
                 ) : (
                   <Text style={styles.editAvatarText}>{editName[0]?.toUpperCase() || initials}</Text>
                 )}
@@ -458,15 +499,17 @@ const styles = StyleSheet.create({
   settingsIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary90, alignItems: 'center', justifyContent: 'center' },
   settingsLabel: { fontFamily: Typography.fontFamily.semiBold, fontSize: Typography.fontSize.md, color: Colors.textPrimary },
   settingsDesc: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: Colors.textMuted, marginTop: 1 },
-  premiumBanner: { borderRadius: 20, padding: 24, alignItems: 'center' },
-  premiumIcon: { fontSize: 36, marginBottom: 8 },
-  premiumTitle: { fontFamily: Typography.fontFamily.extraBold, fontSize: Typography.fontSize['2xl'], color: Colors.white, marginBottom: 8 },
-  premiumDesc: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.sm, color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginBottom: 20 },
-  premiumBtn: { backgroundColor: '#f59e0b', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32 },
-  premiumBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.lg, color: '#0f172a' },
   signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.white, borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: Colors.error, marginBottom: 16 },
   signOutText: { fontFamily: Typography.fontFamily.semiBold, fontSize: Typography.fontSize.md, color: Colors.error },
   footer: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: Colors.textMuted, textAlign: 'center' },
+  // Invite card
+  inviteCard: { borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  inviteTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.lg, color: Colors.white, marginBottom: 4 },
+  inviteDesc: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: 'rgba(255,255,255,0.8)', marginBottom: 12, lineHeight: 16 },
+  inviteCodeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  inviteCode: { fontFamily: Typography.fontFamily.extraBold, fontSize: Typography.fontSize.xl, color: Colors.white, letterSpacing: 2 },
+  inviteShareBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
+  inviteShareText: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.xs, color: Colors.primary },
   // Edit Modal
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   editModal: { backgroundColor: Colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40 },

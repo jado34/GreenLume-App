@@ -8,10 +8,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import Toast from 'react-native-toast-message';
+import * as Haptics from 'expo-haptics';
 import { storage, UserData } from '../../utils/storage';
+import { notificationStore, RichNotification } from '../../utils/inAppNotifications';
 import { Colors } from '../../constants/colors';
 import { Typography, Shadows } from '../../constants/typography';
 import { getDynamicTheme } from '../../utils/theme';
+import { getAvatarColor } from '../../utils/avatar';
 
 const { width } = Dimensions.get('window');
 const CARD_SIZE = (width - 52) / 2; // 2 cols, section padding 20×2, 1 gap of 12
@@ -31,12 +34,6 @@ const WEEKLY_CHALLENGES = [
   { id: 'zerowaste_week', title: 'Zero Waste Week ♻️', goal: 'Avoid single-use plastic for 7 days', color: '#8b5cf6', emoji: '♻️', actionKey: 'no_plastic' },
 ];
 
-const NOTIFICATIONS = [
-  { id: '1', icon: '🔥', title: 'Keep your streak going!', body: 'Log an action today to maintain your streak.', time: 'Just now' },
-  { id: '2', icon: '🏆', title: 'Badge almost unlocked!', body: 'Log 1 more action to earn "First Steps" badge.', time: '2h ago' },
-  { id: '3', icon: '🌍', title: 'Weekly Challenge started', body: 'Public Transport Week is live — join now!', time: '1d ago' },
-  { id: '4', icon: '💚', title: 'You\'re making a difference!', body: 'Your actions have saved measurable CO₂ this week.', time: '2d ago' },
-];
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -45,11 +42,6 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
-const AVATAR_COLORS = ['#2e7d32','#1565c0','#6a1b9a','#c62828','#00838f','#f57f17'];
-function getAvatarColor(name: string): string {
-  const idx = name.charCodeAt(0) % AVATAR_COLORS.length || 0;
-  return AVATAR_COLORS[idx];
-}
 
 export default function HomeScreen() {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -60,6 +52,9 @@ export default function HomeScreen() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [needsWaterNudge, setNeedsWaterNudge] = useState(false);
+  const [notificationsRead, setNotificationsRead] = useState(false);
+  const [notifications, setNotifications] = useState<RichNotification[]>([]);
+  const [hasUnread, setHasUnread] = useState(false);
   const fadeIn = useRef(new Animated.Value(0)).current;
 
   const loadData = useCallback(async () => {
@@ -67,10 +62,20 @@ export default function HomeScreen() {
     const name = await storage.getUserName();
     const avatar = await storage.getCustomAvatar();
     const premiumStatus = await storage.isPremium();
+    const notifRead = await storage.areNotificationsRead();
+
+    // Load real, event-driven notifications
+    await notificationStore.addWelcomeIfEmpty();
+    const realNotifs = await notificationStore.getAll();
+    const unread = await notificationStore.hasUnread();
+
     setUserData(data);
     setUserName(name);
     setCustomAvatar(avatar);
     setIsPremium(premiumStatus);
+    setNotificationsRead(notifRead);
+    setNotifications(realNotifs);
+    setHasUnread(unread);
     setTodayLogged(new Set(data.todayActions));
     
     // Check if any plants need water
@@ -91,6 +96,7 @@ export default function HomeScreen() {
   const handleQuickAction = async (action: typeof QUICK_ACTIONS[0]) => {
     if (todayLogged.has(action.id)) {
       // Undo action
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       const updated = await storage.removeAction(action.points, action.id);
       setUserData(updated);
       setTodayLogged(new Set(updated.todayActions));
@@ -101,6 +107,7 @@ export default function HomeScreen() {
       });
       return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const updated = await storage.addPoints(action.points, [action.id]);
     setUserData(updated);
     setTodayLogged(new Set(updated.todayActions));
@@ -164,7 +171,7 @@ export default function HomeScreen() {
               accessibilityRole="button"
             >
               <Ionicons name="notifications" size={22} color="rgba(255,255,255,0.9)" />
-              <View style={styles.notifDot} />
+              {hasUnread && <View style={styles.notifDot} />}
             </TouchableOpacity>
           </View>
           <Text style={styles.greeting}>{getGreeting()}, {userName} 👋</Text>
@@ -215,7 +222,11 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Quick Actions</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/log')}>
+              <TouchableOpacity 
+                onPress={() => router.push('/(tabs)/log')}
+                accessibilityLabel="See all available eco-actions"
+                accessibilityRole="link"
+              >
                 <Text style={styles.seeAll}>See All →</Text>
               </TouchableOpacity>
             </View>
@@ -256,6 +267,9 @@ export default function HomeScreen() {
                     style={styles.challengeCard}
                     activeOpacity={0.8}
                     onPress={() => Toast.show({ type: 'info', text1: challenge.title, text2: challenge.goal })}
+                    accessibilityLabel={`${challenge.title}: ${progress} of 7 days complete, ${pct}% done`}
+                    accessibilityRole="button"
+                    accessibilityHint="Tap for details"
                   >
                     <View style={styles.challengeHeader}>
                       <Text style={styles.challengeEmoji}>{challenge.emoji}</Text>
@@ -309,7 +323,10 @@ export default function HomeScreen() {
           <View style={[styles.section, { marginBottom: 24 }]}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Your Impact This Week</Text>
-              <TouchableOpacity onPress={() => router.push('/nursery' as any)}>
+            <TouchableOpacity onPress={() => router.push('/nursery' as any)}
+                accessibilityLabel="View my virtual forest"
+                accessibilityRole="link"
+              >
                 <Text style={styles.seeAll}>View Forest 🌲</Text>
               </TouchableOpacity>
             </View>
@@ -317,6 +334,8 @@ export default function HomeScreen() {
               style={styles.impactRow} 
               onPress={() => router.push('/nursery' as any)}
               activeOpacity={0.9}
+              accessibilityLabel={`Your weekly impact: ${((points/100)*0.8).toFixed(1)}kg CO₂ saved. Tap to view your virtual forest.`}
+              accessibilityRole="link"
             >
               {[
                 { icon: 'cloud-outline', label: 'CO₂ Saved', value: `${((points / 100) * 0.8).toFixed(1)}kg`, color: '#10b981' },
@@ -336,36 +355,84 @@ export default function HomeScreen() {
 
       {/* Notifications Modal */}
       <Modal visible={showNotifications} transparent animationType="slide">
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowNotifications(false)}>
+        <Pressable 
+          style={styles.modalBackdrop} 
+          onPress={() => setShowNotifications(false)}
+          accessibilityLabel="Close notifications panel"
+          accessibilityRole="button"
+        >
           <Pressable style={styles.notifPanel} onPress={(e) => e.stopPropagation()}>
             <View style={styles.notifHandle} />
             <View style={styles.notifPanelHeader}>
-              <Text style={styles.notifPanelTitle}>Notifications</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.notifPanelTitle}>Notifications</Text>
+                {hasUnread && (
+                  <View style={{ backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
+                      {notifications.filter(n => !n.read).length}
+                    </Text>
+                  </View>
+                )}
+              </View>
               <TouchableOpacity onPress={() => setShowNotifications(false)}>
                 <Ionicons name="close" size={24} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            {NOTIFICATIONS.map((n, i) => (
-              <TouchableOpacity
-                key={n.id}
-                style={[styles.notifItem, i < NOTIFICATIONS.length - 1 && styles.notifItemBorder]}
-                activeOpacity={0.7}
-                accessibilityLabel={`${n.title}: ${n.body}. ${n.time}`}
+
+            {notifications.length === 0 ? (
+              // Empty state — shown until user logs their first action
+              <View style={styles.notifEmptyState}>
+                <Text style={{ fontSize: 40, marginBottom: 12 }}>🔔</Text>
+                <Text style={styles.notifEmptyTitle}>No notifications yet</Text>
+                <Text style={styles.notifEmptyBody}>
+                  Notifications appear here when you earn badges, hit streak milestones, reach point goals, and more. Log your first action to get started!
+                </Text>
+              </View>
+            ) : (
+              notifications.map((n, i) => (
+                <TouchableOpacity
+                  key={n.id}
+                  style={[
+                    styles.notifItem,
+                    i < notifications.length - 1 && styles.notifItemBorder,
+                    !n.read && styles.notifItemUnread,
+                  ]}
+                  activeOpacity={0.7}
+                  accessibilityLabel={`${n.title}: ${n.body}. ${n.timeAgo}`}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.notifIconWrap}>
+                    <Text style={{ fontSize: 22 }}>{n.icon}</Text>
+                    {!n.read && <View style={styles.notifUnreadDot} />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.notifTitle, !n.read && { color: Colors.textPrimary }]}>{n.title}</Text>
+                    <Text style={styles.notifBody} numberOfLines={2}>{n.body}</Text>
+                    <Text style={styles.notifTime}>{n.timeAgo}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+
+            {notifications.length > 0 && (
+              <TouchableOpacity 
+                style={styles.notifClearBtn} 
+                onPress={async () => { 
+                  await notificationStore.markAllRead();
+                  await storage.markNotificationsRead();
+                  const refreshed = await notificationStore.getAll();
+                  setNotifications(refreshed);
+                  setHasUnread(false);
+                  setNotificationsRead(true);
+                  setShowNotifications(false); 
+                  Toast.show({ type: 'success', text1: 'All caught up! ✓' }); 
+                }}
+                accessibilityLabel="Mark all notifications as read"
                 accessibilityRole="button"
               >
-                <View style={styles.notifIconWrap}>
-                  <Text style={{ fontSize: 22 }}>{n.icon}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.notifTitle}>{n.title}</Text>
-                  <Text style={styles.notifBody} numberOfLines={2}>{n.body}</Text>
-                  <Text style={styles.notifTime}>{n.time}</Text>
-                </View>
+                <Text style={styles.notifClearText}>Mark all as read</Text>
               </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.notifClearBtn} onPress={() => { setShowNotifications(false); Toast.show({ type: 'success', text1: 'Notifications cleared ✓' }); }}>
-              <Text style={styles.notifClearText}>Mark all as read</Text>
-            </TouchableOpacity>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -428,4 +495,11 @@ const styles = StyleSheet.create({
   notifTime: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: Colors.textMuted, marginTop: 4 },
   notifClearBtn: { marginHorizontal: 20, marginTop: 16, paddingVertical: 14, backgroundColor: Colors.primary90, borderRadius: 14, alignItems: 'center' },
   notifClearText: { fontFamily: Typography.fontFamily.semiBold, fontSize: Typography.fontSize.md, color: Colors.primary },
+  // Unread state — subtle tint so users can scan what's new at a glance
+  notifItemUnread: { backgroundColor: '#f0fdf4' },
+  notifUnreadDot: { position: 'absolute', top: -2, right: -2, width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary, borderWidth: 1.5, borderColor: Colors.white },
+  // Empty state — shown when the user hasn't triggered any notifications yet
+  notifEmptyState: { alignItems: 'center', paddingHorizontal: 32, paddingVertical: 32 },
+  notifEmptyTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.lg, color: Colors.textPrimary, marginBottom: 8 },
+  notifEmptyBody: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 });

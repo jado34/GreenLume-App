@@ -3,6 +3,7 @@
     "name": "GreenLume",
     "slug": "greenscore-app",
     "version": "1.0.0",
+
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -17,7 +18,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.greenlume.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "GreenLume uses the camera to update your profile photo."
+        "NSCameraUsageDescription": "GreenLume uses your camera to verify eco-actions with photo proof and to update your profile photo.",
+        "NSPhotoLibraryUsageDescription": "GreenLume accesses your photo library to attach photo proof to your eco-actions and to set your profile photo."
       }
     },
     "android": {
@@ -27,7 +29,10 @@
       },
       "package": "com.greenlume.app",
       "googleServicesFile": "./google-services.json",
-      "permissions": []
+      "permissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

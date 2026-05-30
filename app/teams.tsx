@@ -347,7 +347,6 @@ export default function TeamsScreen() {
 
   if (!userData) return null;
 
-  const isPremium = userData.isPremium;
 
   return (
     <View style={styles.container}>

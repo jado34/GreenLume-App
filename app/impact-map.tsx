@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -103,7 +103,17 @@ export default function NurseryScreen() {
     setActiveWateringPlant(null);
   };
 
-  if (!userData) return null;
+  if (!userData) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#064e3b', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="rgba(255,255,255,0.8)" />
+        <Text style={{ color: 'rgba(255,255,255,0.7)', fontFamily: Typography.fontFamily.medium,
+                       fontSize: Typography.fontSize.sm, marginTop: 12 }}>
+          Loading your forest...
+        </Text>
+      </View>
+    );
+  }
 
   // Determine background color based on forest health (wither mechanic)
   const isDrought = userData.activeForest.some(p => p.stage === 'withered' || p.waterLevel <= 50);

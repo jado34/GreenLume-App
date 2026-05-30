@@ -1,5 +1,5 @@
 // Log Actions Screen — Category tabs + tappable action cards
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, LayoutAnimation, Platform, UIManager, Alert,
@@ -23,6 +23,7 @@ import { loadCustomActions } from '../custom-action';
 import { Colors } from '../../constants/colors';
 import { Typography, Shadows } from '../../constants/typography';
 import { useUserData, useLogActionMutation, useRemoveActionMutation } from '../../hooks/useUserData';
+import { storage } from '../../utils/storage';
 
 
 
@@ -57,12 +58,15 @@ export default function LogActionsScreen() {
     });
   }, []));
 
-  const filtered = allActions.filter((a) => {
-    const matchCat = activeCategory === 'all' || a.category === activeCategory;
-    const matchSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchCat && matchSearch;
-  });
+  const filtered = useMemo(() =>
+    allActions.filter((a) => {
+      const matchCat = activeCategory === 'all' || a.category === activeCategory;
+      const matchSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.description.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchCat && matchSearch;
+    }),
+    [allActions, searchQuery, activeCategory]
+  );
 
   const toggleAction = async (id: string) => {
     if (todayLogged.has(id)) {
@@ -105,7 +109,7 @@ export default function LogActionsScreen() {
 
     Toast.show({
       type: 'success',
-      text1: `+${totalPendingPoints} Coins 🪙 | +${pendingActions.size} Water 💧`,
+      text1: `+${totalPendingPoints} Points ⭐ | +${pendingActions.size} Water 💧`,
       text2: `${pendingActions.size} action${pendingActions.size > 1 ? 's' : ''} saved. Go water your forest!`,
     });
 
@@ -113,11 +117,23 @@ export default function LogActionsScreen() {
     setCelebrating(true);
     setPendingActions(new Set());
 
-    // Stop celebrating after 3.5 seconds
-    setTimeout(() => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setCelebrating(false);
-    }, 3500);
+    // Check if a badge or rank-up celebration should fire
+    const celebration = storage._pendingCelebration;
+    if (celebration) {
+      storage._pendingCelebration = null;
+      // Small delay so the toast shows first
+      setTimeout(() => {
+        router.push({
+          pathname: '/levelup',
+          params: celebration,
+        } as any);
+      }, 800);
+    } else {
+      setTimeout(() => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setCelebrating(false);
+      }, 3500);
+    }
   };
 
   const handleSave = async () => {
@@ -159,7 +175,7 @@ export default function LogActionsScreen() {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'GreenLume needs library access to upload action proof.');
+        Alert.alert('Permission Required', 'GreenLume needs gallery access to add photo proof.');
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -173,6 +189,7 @@ export default function LogActionsScreen() {
         setPhotoBase64(result.assets[0].base64 || null);
       }
     } catch (error) {
+
       console.warn('Picker error:', error);
       Toast.show({ type: 'error', text1: 'Failed to select photo' });
     }
@@ -256,6 +273,9 @@ export default function LogActionsScreen() {
         <TouchableOpacity
           style={[styles.tab, activeCategory === 'all' && styles.tabActive]}
           onPress={() => setActiveCategory('all')}
+          accessibilityRole="tab"
+          accessibilityLabel="Show all actions"
+          accessibilityState={{ selected: activeCategory === 'all' }}
         >
           <Text style={[styles.tabText, activeCategory === 'all' && styles.tabTextActive]}>All</Text>
         </TouchableOpacity>
@@ -275,7 +295,7 @@ export default function LogActionsScreen() {
       </ScrollView>
 
       {/* Action List */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: pendingActions.size > 0 ? 90 : 24, gap: 10 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: pendingActions.size > 0 ? 120 : 24, gap: 10 }}>
         {filtered.map((action) => {
           const isPending = pendingActions.has(action.id);
           const isDone = todayLogged.has(action.id);
@@ -433,7 +453,7 @@ export default function LogActionsScreen() {
                         setShowVerifyModal(false);
                       }}
                     >
-                      <Text style={styles.outlineButtonText}>Save without Photo Proof</Text>
+                      <Text style={styles.outlineButtonText}>Save without Proof</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -645,32 +665,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  lockContainer: {
-    width: '100%',
-    height: 140,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  lockCard: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  lockCardTitle: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.md,
-    color: '#fbbf24',
-    marginBottom: 4,
-  },
-  lockCardDesc: {
-    fontFamily: Typography.fontFamily.regular,
-    fontSize: Typography.fontSize.xs,
-    color: Colors.white,
-    opacity: 0.8,
     textAlign: 'center',
   },
 });
