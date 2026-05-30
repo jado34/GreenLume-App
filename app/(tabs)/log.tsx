@@ -383,57 +383,10 @@ export default function LogActionsScreen() {
                 <Text style={styles.scanningText}>Scanning with GreenLume AI...</Text>
                 <Text style={styles.scanningSubtext}>Analyzing photo to verify sustainable impact...</Text>
               </View>
-            ) : !userData?.isPremium ? (
-              <View>
-                <View style={styles.modalHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Ionicons name="lock-closed" size={20} color="#fbbf24" />
-                    <Text style={styles.modalTitle}>Earth+ Verification</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => setShowVerifyModal(false)}>
-                    <Ionicons name="close" size={24} color={Colors.textPrimary} />
-                  </TouchableOpacity>
-                </View>
-                
-                <Text style={styles.modalDesc}>
-                  Upgrade to Earth+ Premium to verify your eco-actions with photo proof and earn validated community badges!
-                </Text>
-
-                <View style={styles.lockContainer}>
-                  <LinearGradient colors={['#052008', '#0b390e']} style={styles.lockCard}>
-                    <Ionicons name="camera" size={36} color="#fbbf24" style={{ marginBottom: 6 }} />
-                    <Text style={styles.lockCardTitle}>Camera Verification (Locked)</Text>
-                    <Text style={styles.lockCardDesc}>Available exclusively to Earth+ Premium members</Text>
-                  </LinearGradient>
-                </View>
-
-                <View style={styles.btnGroupVertical}>
-                  {/* FIX #34: Use amber color for premium upgrade CTA to match app-wide premium language */}
-                  <TouchableOpacity 
-                    style={[styles.primaryBtn, { backgroundColor: '#f59e0b' }]} 
-                    onPress={() => {
-                      setShowVerifyModal(false);
-                      router.push('/premium');
-                    }}
-                  >
-                    <Text style={styles.primaryBtnText}>Upgrade to Earth+ ($1.99/mo)</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity 
-                    style={styles.outlineButtonVertical} 
-                    onPress={async () => {
-                      await executeSave();
-                      setShowVerifyModal(false);
-                    }}
-                  >
-                    <Text style={styles.outlineButtonText}>Save without Photo Proof</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
             ) : (
               <View>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Earth+ Verification</Text>
+                  <Text style={styles.modalTitle}>Photo Verification</Text>
                   <TouchableOpacity onPress={() => setShowVerifyModal(false)} disabled={verifying}>
                     <Ionicons name="close" size={24} color={Colors.textPrimary} />
                   </TouchableOpacity>

@@ -275,7 +275,7 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* AI Coach Insights (Premium or Locked) */}
+          {/* AI Coach Insights */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>AI Eco-Coach</Text>
@@ -284,23 +284,23 @@ export default function HomeScreen() {
             <TouchableOpacity 
               style={[styles.challengeCard, { borderColor: '#0ea5e9', backgroundColor: '#f0f9ff' }]}
               activeOpacity={0.8}
-              onPress={() => isPremium ? router.push('/ai-coach' as any) : router.push('/premium' as any)}
+              onPress={() => router.push('/ai-coach' as any)}
             >
               <View style={styles.challengeHeader}>
                 <Text style={styles.challengeEmoji}>🤖</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.challengeLabel, { color: '#0ea5e9' }]}>
-                    {isPremium ? 'PREMIUM UNLOCKED' : 'SMART INSIGHTS'}
+                    SMART INSIGHTS
                   </Text>
                   <Text style={styles.challengeTitle}>
-                    {isPremium ? 'View Daily Coaching' : 'Unlock Personalized Tips'}
+                    View Daily Coaching
                   </Text>
                   <Text style={styles.challengeGoal}>
-                    {isPremium ? 'Your AI has analyzed your recent actions' : 'Discover how to double your impact'}
+                    Get personalized tips based on your local weather and lifestyle.
                   </Text>
                 </View>
                 <View style={{ backgroundColor: '#e0f2fe', padding: 8, borderRadius: 12 }}>
-                  <Ionicons name={isPremium ? "arrow-forward" : "lock-closed"} size={20} color="#0ea5e9" />
+                  <Ionicons name="arrow-forward" size={20} color="#0ea5e9" />
                 </View>
               </View>
             </TouchableOpacity>

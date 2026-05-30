@@ -1,15 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
 import * as Haptics from 'expo-haptics';
-import { storage } from '../utils/storage';
-import { useQueryClient } from '@tanstack/react-query';
-import { USER_DATA_QUERY_KEY } from '../hooks/useUserData';
-import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
-import Purchases from 'react-native-purchases';
 import { Colors } from '../constants/colors';
 import { Typography } from '../constants/typography';
 import { analytics } from '../utils/analytics';
@@ -74,47 +68,9 @@ export default function PremiumScreen() {
     analytics.track('premium_paywall_viewed');
   }, []);
 
-  const queryClient = useQueryClient();
-
-  const handleSubscribe = async () => {
-    try {
-      // Show the RevenueCat Paywall automatically, bypassing if they already have it!
-      // FIX #13: IMPORTANT — Verify that "GreenLume Pro" exactly matches your entitlement
-      // identifier in the RevenueCat dashboard. A mismatch will break subscription detection.
-      const paywallResult = await RevenueCatUI.presentPaywallIfNeeded({
-        requiredEntitlementIdentifier: "GreenLume Pro"
-      });
-
-      // If they bought it or restored it successfully, or already had it
-      if (paywallResult === PAYWALL_RESULT.PURCHASED || paywallResult === PAYWALL_RESULT.RESTORED || paywallResult === PAYWALL_RESULT.NOT_PRESENTED) {
-        // Double check the customer info to be certain
-        const customerInfo = await Purchases.getCustomerInfo();
-        if (typeof customerInfo.entitlements.active['GreenLume Pro'] !== "undefined") {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          await storage.setPremium(true);
-          queryClient.invalidateQueries({ queryKey: USER_DATA_QUERY_KEY });
-
-          Toast.show({
-            type: 'success',
-            text1: 'Earth+ Unlocked! 🎉',
-            text2: 'Welcome to the premium experience.',
-            position: 'top',
-          });
-
-          analytics.track('premium_purchased');
-          router.back();
-        }
-      }
-    } catch (error: any) {
-      if (error && !error.userCancelled) {
-        Toast.show({
-          type: 'error',
-          text1: 'Purchase Failed',
-          text2: error.message || 'An error occurred during purchase.',
-          position: 'top',
-        });
-      }
-    }
+  const handleGetStarted = async () => {
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.back();
   };
 
   return (
@@ -130,7 +86,7 @@ export default function PremiumScreen() {
       <View style={[styles.orb, { bottom: -50, left: -100, backgroundColor: 'rgba(245, 158, 11, 0.1)' }]} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Close Button — FIX #30: Add accessibilityLabel and Role */}
+        {/* Close Button */}
         <TouchableOpacity
           style={styles.closeButton}
           onPress={() => router.back()}
@@ -147,15 +103,15 @@ export default function PremiumScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.crownContainer}>
-              <Ionicons name="star" size={48} color="#f59e0b" />
+              <Ionicons name="gift" size={48} color="#f59e0b" />
             </View>
-            <Text style={styles.title}>GreenLume <Text style={styles.titleHighlight}>Earth+</Text></Text>
-            <Text style={styles.subtitle}>Amplify your impact and unlock the ultimate sustainability experience.</Text>
+            <Text style={styles.title}>GreenLume <Text style={styles.titleHighlight}>Unlocked</Text></Text>
+            <Text style={styles.subtitle}>All premium features are now free for everyone to maximize our collective climate impact.</Text>
           </View>
 
           {/* Features List */}
           <View style={styles.featuresContainer}>
-            {PREMIUM_FEATURES.map((feature, index) => (
+            {PREMIUM_FEATURES.map((feature) => (
               <View key={feature.id} style={styles.featureCard}>
                 <View style={[styles.iconContainer, { backgroundColor: `${feature.color}15` }]}>
                   <Ionicons name={feature.icon as any} size={26} color={feature.color} />
@@ -170,17 +126,17 @@ export default function PremiumScreen() {
 
           {/* Pricing & CTA */}
           <View style={styles.pricingContainer}>
-            <Text style={styles.price}>$2.99 <Text style={styles.pricePeriod}>/ month</Text></Text>
-            <Text style={styles.cancelText}>Cancel anytime. Billed monthly.</Text>
+            <Text style={styles.price}>100% Free</Text>
+            <Text style={styles.cancelText}>No subscription required. Start saving the planet.</Text>
             
-            <TouchableOpacity style={styles.ctaButton} onPress={handleSubscribe} activeOpacity={0.9}>
+            <TouchableOpacity style={styles.ctaButton} onPress={handleGetStarted} activeOpacity={0.9}>
               <LinearGradient
                 colors={['#f59e0b', '#d97706']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.ctaGradient}
               >
-                <Text style={styles.ctaText}>Unlock Earth+ Now</Text>
+                <Text style={styles.ctaText}>Start Saving the Planet</Text>
                 <Ionicons name="arrow-forward" size={20} color="#fff" />
               </LinearGradient>
             </TouchableOpacity>
@@ -305,16 +261,12 @@ const styles = StyleSheet.create({
     color: Colors.white,
     marginBottom: 4,
   },
-  pricePeriod: {
-    fontFamily: Typography.fontFamily.medium,
-    fontSize: Typography.fontSize.md,
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
   cancelText: {
     fontFamily: Typography.fontFamily.regular,
-    fontSize: Typography.fontSize.xs,
-    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: Typography.fontSize.sm,
+    color: 'rgba(255, 255, 255, 0.6)',
     marginBottom: 24,
+    textAlign: 'center',
   },
   ctaButton: {
     width: '100%',

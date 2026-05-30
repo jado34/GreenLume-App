@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { LogBox, Platform } from 'react-native';
-import Purchases from 'react-native-purchases';
 
 LogBox.ignoreLogs([
   'Android Push notifications (remote notifications) functionality provided by expo-notifications was removed',
@@ -48,28 +47,7 @@ export default function RootLayout() {
     PlusJakartaSans_800ExtraBold,
   });
 
-  // Initialize RevenueCat
-  useEffect(() => {
-    const initPurchases = async () => {
-      try {
-        Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
-        let apiKey = '';
-        if (Platform.OS === 'ios') {
-          apiKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY || '';
-        } else if (Platform.OS === 'android') {
-          apiKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || ''; 
-        }
-        
-        if (apiKey) {
-          Purchases.configure({ apiKey });
-        }
-      } catch (error) {
-        console.error('Error initializing RevenueCat:', error);
-      }
-    };
-    
-    initPurchases();
-  }, []);
+  // RevenueCat bypassed - all features are free
 
   // Listen for Supabase auth state changes
   useEffect(() => {
@@ -100,23 +78,6 @@ export default function RootLayout() {
 
           await storage.restoreFromSupabase(event === 'SIGNED_IN');
 
-          // Auto-upgrade developer account to Premium in the database
-          if (user.email === 'olawuwoadegoke16@gmail.com') {
-            console.log('[Storage] Auto-upgrading owner account to Premium');
-            await storage.setPremium(true);
-            await storage.syncToSupabase();
-            
-            // Invalidate queries so that UI screens (like index.tsx, profile.tsx) update
-            const { USER_DATA_QUERY_KEY } = require('../hooks/useUserData');
-            queryClient.invalidateQueries({ queryKey: USER_DATA_QUERY_KEY });
-          }
-          
-          try {
-            await Purchases.logIn(user.id);
-          } catch (e) {
-            console.error('[RevenueCat] Login error:', e);
-          }
-          
           // Request and save Expo Push Token for remote notifications
           await notifications.registerForPushNotificationsAsync(user.id);
         }
@@ -124,11 +85,6 @@ export default function RootLayout() {
         if (event === 'SIGNED_OUT') {
           analytics.reset();
           await storage.signOut();
-          try {
-            await Purchases.logOut();
-          } catch (e) {
-            console.error('[RevenueCat] Logout error:', e);
-          }
         }
       }
     );

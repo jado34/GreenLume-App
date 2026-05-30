@@ -26,48 +26,21 @@ export default function AICoachScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isAiResponding, setIsAiResponding] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
+  const showPaywall = false;
   const [localContext, setLocalContext] = useState<LocalContext | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
   // FIX #4: Use a ref to track if the greeting has fired, so re-visits don't reset it
   const greetingFiredRef = useRef(false);
 
-  const updateFreeTipMutation = useMutation({
-    mutationFn: async () => {
-      const today = new Date().toISOString().split('T')[0];
-      await storage.updateUserData({ lastFreeCoachTipDate: today });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: USER_DATA_QUERY_KEY });
-    }
-  });
-
   // Initialize dynamic greeting on mount
   useFocusEffect(
     useCallback(() => {
       if (!userData) return;
-
-      const today = new Date().toISOString().split('T')[0];
-      const isPremium = userData.isPremium;
-      const hasUsedFreeTip = userData.lastFreeCoachTipDate === today;
-
-      if (!isPremium && hasUsedFreeTip) {
-        setShowPaywall(true);
-        return;
-      }
-
-      if (!isPremium && !hasUsedFreeTip) {
-        // Consume free tip
-        updateFreeTipMutation.mutate();
-      }
-
       const loadContextAndGreet = async () => {
         let ctx = null;
-        if (isPremium) {
-          ctx = await getLocalContext();
-          if (ctx) setLocalContext(ctx);
-        }
+        ctx = await getLocalContext();
+        if (ctx) setLocalContext(ctx);
 
         // Fade in the screen
         Animated.timing(fadeAnim, {
@@ -85,7 +58,7 @@ export default function AICoachScreen() {
           else if (hour < 17) timeGreeting = "Good afternoon";
           else timeGreeting = "Good evening";
 
-          let greeting = `${timeGreeting}! I'm your Earth+ Eco-Coach. I've been analyzing your recent activity.\n\n`;
+          let greeting = `${timeGreeting}! I'm your GreenLume Eco-Coach. I've been analyzing your recent activity.\n\n`;
           
           if (ctx) {
             if (ctx.condition === 'raining' || ctx.condition === 'stormy') {
@@ -255,7 +228,7 @@ export default function AICoachScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Ionicons name="sparkles" size={20} color={Colors.primary} />
-          <Text style={styles.headerTitle}>Earth+ AI Coach</Text>
+          <Text style={styles.headerTitle}>AI Eco-Coach</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>

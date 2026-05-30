@@ -353,28 +353,8 @@ export default function LeaderboardScreen() {
               <Text style={styles.stateActionBtnText}>Join Company Team</Text>
             </TouchableOpacity>
           </View>
-        ) : activeTab === 'squad' && !userData?.customSquadCode && !userData?.isPremium ? (
-          /* Locked Premium State */
-          <View style={styles.stateCard}>
-            <LinearGradient colors={['#052008', '#0b390e']} style={styles.premiumLockGradient}>
-              <View style={styles.lockBadgeRow}>
-                <Ionicons name="lock-closed" size={20} color="#fbbf24" />
-                <Text style={styles.lockBadgeText}>Earth+ Feature</Text>
-              </View>
-              <Text style={[styles.stateTitle, { color: Colors.white, marginTop: 12 }]}>Squad Leaderboards</Text>
-              <Text style={[styles.stateDesc, { color: 'rgba(255, 255, 255, 0.75)' }]}>
-                Upgrade to Earth+ Premium to launch custom squads, generate invite codes, and compete on private circles with friends and family.
-              </Text>
-              <TouchableOpacity 
-                style={[styles.stateActionBtn, { backgroundColor: '#fbbf24', borderWidth: 0 }]}
-                onPress={() => router.push('/premium')}
-              >
-                <Text style={[styles.stateActionBtnText, { color: '#052008' }]}>Unlock Earth+ ($1.99/mo)</Text>
-              </TouchableOpacity>
-            </LinearGradient>
-          </View>
-        ) : activeTab === 'squad' && !userData?.customSquadCode && userData?.isPremium ? (
-          /* Premium but no squad created */
+        ) : activeTab === 'squad' && !userData?.customSquadCode ? (
+          /* No squad created */
           <View style={styles.stateCard}>
             <View style={[styles.stateIconContainer, { backgroundColor: 'rgba(14, 165, 233, 0.1)' }]}>
               <Ionicons name="people-outline" size={48} color="#0ea5e9" />

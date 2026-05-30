@@ -70,7 +70,7 @@ const DEFAULT_USER_DATA: UserData = {
   todayPoints: 0,
   earnedBadges: [],
   longestStreak: 0,
-  isPremium: false,
+  isPremium: true,
   lastFreeCoachTipDate: null,
   teamId: null,
   companyName: null,
@@ -147,16 +147,11 @@ export const storage = {
 
   // --- Premium State ---
   async isPremium(): Promise<boolean> {
-    const value = await AsyncStorage.getItem(KEYS.IS_PREMIUM);
-    return value === 'true';
+    return true; // All features are free for everyone
   },
 
   async setPremium(status: boolean): Promise<void> {
-    await AsyncStorage.setItem(KEYS.IS_PREMIUM, status ? 'true' : 'false');
-    const data = await this.getUserData();
-    data.isPremium = status;
-    await AsyncStorage.setItem(KEYS.USER_DATA, JSON.stringify(data));
-    await storage.syncToSupabase();
+    // No-op since premium is always enabled
   },
 
   /**
@@ -324,7 +319,7 @@ export const storage = {
       if (data.inventorySeeds === undefined) data.inventorySeeds = 0;
       if (!data.activeForest) data.activeForest = [];
       if (data.todayPoints === undefined) data.todayPoints = 0;
-      if (data.isPremium === undefined) data.isPremium = (await AsyncStorage.getItem(KEYS.IS_PREMIUM)) === 'true';
+      data.isPremium = true; // Always true for free premium features
       if (data.lastFreeCoachTipDate === undefined) data.lastFreeCoachTipDate = null;
       if (data.teamId === undefined) data.teamId = null;
       if (data.companyName === undefined) data.companyName = null;

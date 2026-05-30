@@ -17,7 +17,6 @@ import { analytics } from '../../utils/analytics';
 import { Colors } from '../../constants/colors';
 import { Typography, Shadows } from '../../constants/typography';
 import { getDynamicTheme } from '../../utils/theme';
-import RevenueCatUI from 'react-native-purchases-ui';
 
 const AVATAR_COLORS = ['#2e7d32','#1565c0','#6a1b9a','#c62828','#00838f','#e65100','#00695c'];
 function getAvatarColor(name: string): string {
@@ -231,22 +230,6 @@ export default function ProfileScreen() {
       switch: true,
     },
     {
-      icon: 'card-outline',
-      label: 'Manage Subscription',
-      desc: 'View or cancel your Earth+ plan',
-      onPress: async () => {
-        try {
-          await RevenueCatUI.presentCustomerCenter();
-        } catch (error: any) {
-          Toast.show({
-            type: 'error',
-            text1: 'Customer Center',
-            text2: error.message || 'Not available or not configured.',
-          });
-        }
-      },
-    },
-    {
       icon: 'shield-outline', label: 'Privacy & Security', desc: 'Control your data',
       onPress: () => router.push('/privacy-policy'),
     },
@@ -380,19 +363,7 @@ export default function ProfileScreen() {
         {renderSection('App', appSettings)}
         {renderSection('Data & Privacy', dangerSettings)}
 
-        {/* Premium Banner — FIX #17: Only show to non-premium users */}
-        {!userData?.isPremium && (
-          <View style={styles.section}>
-            <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.premiumBanner}>
-              <Text style={styles.premiumIcon}>👑</Text>
-              <Text style={styles.premiumTitle}>Earth+ Premium</Text>
-              <Text style={styles.premiumDesc}>Unlock AI insights, real-world impact, and exclusive rewards</Text>
-              <TouchableOpacity style={styles.premiumBtn} onPress={() => router.push('/premium' as any)}>
-                <Text style={styles.premiumBtnText}>Upgrade Now →</Text>
-              </TouchableOpacity>
-            </LinearGradient>
-          </View>
-        )}
+        {/* Premium Banner removed - all features are free */}
 
         <View style={[styles.section, { marginBottom: 24 }]}>
           <TouchableOpacity 

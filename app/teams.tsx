@@ -590,201 +590,6 @@ export default function TeamsScreen() {
 
               {showAddSquadForm && (
                 <View style={styles.createSquadCard}>
-                  {isPremium ? (
-                    <>
-                      <View style={styles.squadTabContainer}>
-                        <TouchableOpacity
-                          style={[styles.squadTabButton, squadTab === 'create' && styles.squadTabButtonActive]}
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setSquadTab('create');
-                          }}
-                        >
-                          <Ionicons name="add-circle-outline" size={16} color={squadTab === 'create' ? '#0ea5e9' : Colors.textSecondary} />
-                          <Text style={[styles.squadTabText, squadTab === 'create' && styles.squadTabTextActive]}>Create</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity
-                          style={[styles.squadTabButton, squadTab === 'join' && styles.squadTabButtonActive]}
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setSquadTab('join');
-                          }}
-                        >
-                          <Ionicons name="enter-outline" size={16} color={squadTab === 'join' ? '#0ea5e9' : Colors.textSecondary} />
-                          <Text style={[styles.squadTabText, squadTab === 'join' && styles.squadTabTextActive]}>Join</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      {squadTab === 'create' ? (
-                        <>
-                          <Text style={styles.squadCardTitle}>Launch Custom Squad</Text>
-                          <Text style={styles.squadCardDesc}>Compete directly with your friends or family by launching a custom squad.</Text>
-                          <View style={styles.inputContainer}>
-                            <Ionicons name="chatbubbles-outline" size={20} color={Colors.textMuted} />
-                            <TextInput
-                              style={styles.input}
-                              placeholder="Squad Name (e.g. Eco Warriors)"
-                              placeholderTextColor={Colors.textMuted}
-                              value={squadName}
-                              onChangeText={setSquadName}
-                              maxLength={25}
-                            />
-                          </View>
-                          <TouchableOpacity 
-                            style={[styles.joinButton, { backgroundColor: '#0ea5e9' }, !squadName && styles.joinButtonDisabled]} 
-                            onPress={handleCreateSquad}
-                            disabled={!squadName}
-                          >
-                            <Text style={styles.joinButtonText}>Create Squad</Text>
-                          </TouchableOpacity>
-                        </>
-                      ) : (
-                        <>
-                          <Text style={styles.squadCardTitle}>Enter Invite Code</Text>
-                          <Text style={styles.squadCardDesc}>Enter a friend's squad code to join their custom circle.</Text>
-                          <View style={styles.inputContainer}>
-                            <Ionicons name="key-outline" size={20} color={Colors.textMuted} />
-                            <TextInput
-                              style={styles.input}
-                              placeholder="Invite Code (e.g. LUME-1234)"
-                              placeholderTextColor={Colors.textMuted}
-                              value={squadInviteCode}
-                              onChangeText={setSquadInviteCode}
-                              autoCapitalize="characters"
-                              maxLength={15}
-                            />
-                          </View>
-                          <TouchableOpacity 
-                            style={[styles.joinButton, { backgroundColor: '#0ea5e9' }, (!squadInviteCode || joiningSquad) && styles.joinButtonDisabled]} 
-                            onPress={() => handleJoinSquad()}
-                            disabled={!squadInviteCode || joiningSquad}
-                          >
-                            <Text style={styles.joinButtonText}>
-                              {joiningSquad ? 'Joining...' : 'Join Squad'}
-                            </Text>
-                          </TouchableOpacity>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <TouchableOpacity 
-                        style={styles.lockedCard} 
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                          router.push('/premium');
-                        }}
-                        activeOpacity={0.9}
-                      >
-                        <LinearGradient colors={['#052008', '#0b390e']} style={styles.lockedGradient}>
-                          <View style={styles.lockHeader}>
-                            <Ionicons name="lock-closed" size={22} color="#fbbf24" />
-                            <Text style={styles.lockedBadge}>Earth+ Feature</Text>
-                          </View>
-                          <Text style={styles.lockedTitle}>Create a Custom Squad</Text>
-                          <Text style={styles.lockedDesc}>
-                            Upgrade to Earth+ Premium to create custom leaderboards, invite your friends, and compete in personal circles!
-                          </Text>
-                          <View style={styles.lockedBtn}>
-                            <Text style={styles.lockedBtnText}>Upgrade to Earth+ ($1.99/mo)</Text>
-                            <Ionicons name="arrow-forward" size={16} color="#052008" />
-                          </View>
-                        </LinearGradient>
-                      </TouchableOpacity>
-
-                      <View style={{ height: 16 }} />
-
-                      <Text style={styles.squadCardTitle}>Have an Invite Code?</Text>
-                      <Text style={styles.squadCardDesc}>If a friend invited you to their squad, enter their invite code below to join!</Text>
-                      <View style={styles.inputContainer}>
-                        <Ionicons name="key-outline" size={20} color={Colors.textMuted} />
-                        <TextInput
-                          style={styles.input}
-                          placeholder="Invite Code (e.g. LUME-1234)"
-                          placeholderTextColor={Colors.textMuted}
-                          value={squadInviteCode}
-                          onChangeText={setSquadInviteCode}
-                          autoCapitalize="characters"
-                          maxLength={15}
-                        />
-                      </View>
-                      <TouchableOpacity 
-                        style={[styles.joinButton, { backgroundColor: '#fbbf24' }, (!squadInviteCode || joiningSquad) && styles.joinButtonDisabled]} 
-                        onPress={() => handleJoinSquad()}
-                        disabled={!squadInviteCode || joiningSquad}
-                      >
-                        <Text style={[styles.joinButtonText, { color: '#052008' }]}>
-                          {joiningSquad ? 'Joining...' : 'Join Squad'}
-                        </Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              )}
-            </View>
-          ) : (
-            /* Setup Forms (when no squads are joined) */
-            <View style={{ gap: 16 }}>
-              {!isPremium ? (
-                <>
-                  <TouchableOpacity 
-                    style={styles.lockedCard} 
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      router.push('/premium');
-                    }}
-                    activeOpacity={0.9}
-                  >
-                    <LinearGradient colors={['#052008', '#0b390e']} style={styles.lockedGradient}>
-                      <View style={styles.lockHeader}>
-                        <Ionicons name="lock-closed" size={22} color="#fbbf24" />
-                        <Text style={styles.lockedBadge}>Earth+ Feature</Text>
-                      </View>
-                      <Text style={styles.lockedTitle}>Create a Custom Squad</Text>
-                      <Text style={styles.lockedDesc}>
-                        Upgrade to Earth+ Premium to create custom leaderboards, invite your friends, and compete in personal circles!
-                      </Text>
-                      <View style={styles.lockedBtn}>
-                        <Text style={styles.lockedBtnText}>Upgrade to Earth+ ($1.99/mo)</Text>
-                        <Ionicons name="arrow-forward" size={16} color="#052008" />
-                      </View>
-                    </LinearGradient>
-                  </TouchableOpacity>
-
-                  <View style={styles.createSquadCard}>
-                    <View style={[styles.squadIconContainer, { backgroundColor: 'rgba(251, 191, 36, 0.1)' }]}>
-                      <Ionicons name="enter" size={36} color="#fbbf24" />
-                    </View>
-                    <Text style={styles.squadCardTitle}>Have an Invite Code?</Text>
-                    <Text style={styles.squadCardDesc}>If a friend invited you to their squad, enter their invite code below to join!</Text>
-                    
-                    <View style={styles.inputContainer}>
-                      <Ionicons name="key-outline" size={20} color={Colors.textMuted} />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Invite Code (e.g. LUME-1234)"
-                        placeholderTextColor={Colors.textMuted}
-                        value={squadInviteCode}
-                        onChangeText={setSquadInviteCode}
-                        autoCapitalize="characters"
-                        maxLength={15}
-                      />
-                    </View>
-
-                    <TouchableOpacity 
-                      style={[styles.joinButton, { backgroundColor: '#fbbf24' }, (!squadInviteCode || joiningSquad) && styles.joinButtonDisabled]} 
-                      onPress={() => handleJoinSquad()}
-                      disabled={!squadInviteCode || joiningSquad}
-                    >
-                      <Text style={[styles.joinButtonText, { color: '#052008' }]}>
-                        {joiningSquad ? 'Joining...' : 'Join Squad'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                <View style={styles.createSquadCard}>
                   <View style={styles.squadTabContainer}>
                     <TouchableOpacity
                       style={[styles.squadTabButton, squadTab === 'create' && styles.squadTabButtonActive]}
@@ -811,12 +616,8 @@ export default function TeamsScreen() {
 
                   {squadTab === 'create' ? (
                     <>
-                      <View style={styles.squadIconContainer}>
-                        <Ionicons name="people" size={40} color="#0ea5e9" />
-                      </View>
                       <Text style={styles.squadCardTitle}>Launch Custom Squad</Text>
                       <Text style={styles.squadCardDesc}>Compete directly with your friends or family by launching a custom squad.</Text>
-                      
                       <View style={styles.inputContainer}>
                         <Ionicons name="chatbubbles-outline" size={20} color={Colors.textMuted} />
                         <TextInput
@@ -828,7 +629,6 @@ export default function TeamsScreen() {
                           maxLength={25}
                         />
                       </View>
-
                       <TouchableOpacity 
                         style={[styles.joinButton, { backgroundColor: '#0ea5e9' }, !squadName && styles.joinButtonDisabled]} 
                         onPress={handleCreateSquad}
@@ -839,12 +639,8 @@ export default function TeamsScreen() {
                     </>
                   ) : (
                     <>
-                      <View style={[styles.squadIconContainer, { backgroundColor: 'rgba(14, 165, 233, 0.1)' }]}>
-                        <Ionicons name="enter" size={40} color="#0ea5e9" />
-                      </View>
                       <Text style={styles.squadCardTitle}>Enter Invite Code</Text>
                       <Text style={styles.squadCardDesc}>Enter a friend's squad code to join their custom circle.</Text>
-                      
                       <View style={styles.inputContainer}>
                         <Ionicons name="key-outline" size={20} color={Colors.textMuted} />
                         <TextInput
@@ -857,7 +653,6 @@ export default function TeamsScreen() {
                           maxLength={15}
                         />
                       </View>
-
                       <TouchableOpacity 
                         style={[styles.joinButton, { backgroundColor: '#0ea5e9' }, (!squadInviteCode || joiningSquad) && styles.joinButtonDisabled]} 
                         onPress={() => handleJoinSquad()}
@@ -871,6 +666,96 @@ export default function TeamsScreen() {
                   )}
                 </View>
               )}
+            </View>
+          ) : (
+            /* Setup Forms (when no squads are joined) */
+            <View style={{ gap: 16 }}>
+              <View style={styles.createSquadCard}>
+                <View style={styles.squadTabContainer}>
+                  <TouchableOpacity
+                    style={[styles.squadTabButton, squadTab === 'create' && styles.squadTabButtonActive]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSquadTab('create');
+                    }}
+                  >
+                    <Ionicons name="add-circle-outline" size={16} color={squadTab === 'create' ? '#0ea5e9' : Colors.textSecondary} />
+                    <Text style={[styles.squadTabText, squadTab === 'create' && styles.squadTabTextActive]}>Create</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.squadTabButton, squadTab === 'join' && styles.squadTabButtonActive]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSquadTab('join');
+                    }}
+                  >
+                    <Ionicons name="enter-outline" size={16} color={squadTab === 'join' ? '#0ea5e9' : Colors.textSecondary} />
+                    <Text style={[styles.squadTabText, squadTab === 'join' && styles.squadTabTextActive]}>Join</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {squadTab === 'create' ? (
+                  <>
+                    <View style={styles.squadIconContainer}>
+                      <Ionicons name="people" size={40} color="#0ea5e9" />
+                    </View>
+                    <Text style={styles.squadCardTitle}>Launch Custom Squad</Text>
+                    <Text style={styles.squadCardDesc}>Compete directly with your friends or family by launching a custom squad.</Text>
+                    
+                    <View style={styles.inputContainer}>
+                      <Ionicons name="chatbubbles-outline" size={20} color={Colors.textMuted} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Squad Name (e.g. Eco Warriors)"
+                        placeholderTextColor={Colors.textMuted}
+                        value={squadName}
+                        onChangeText={setSquadName}
+                        maxLength={25}
+                      />
+                    </View>
+
+                    <TouchableOpacity 
+                      style={[styles.joinButton, { backgroundColor: '#0ea5e9' }, !squadName && styles.joinButtonDisabled]} 
+                      onPress={handleCreateSquad}
+                      disabled={!squadName}
+                    >
+                      <Text style={styles.joinButtonText}>Create Squad</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <View style={[styles.squadIconContainer, { backgroundColor: 'rgba(14, 165, 233, 0.1)' }]}>
+                      <Ionicons name="enter" size={40} color="#0ea5e9" />
+                    </View>
+                    <Text style={styles.squadCardTitle}>Enter Invite Code</Text>
+                    <Text style={styles.squadCardDesc}>Enter a friend's squad code to join their custom circle.</Text>
+                    
+                    <View style={styles.inputContainer}>
+                      <Ionicons name="key-outline" size={20} color={Colors.textMuted} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Invite Code (e.g. LUME-1234)"
+                        placeholderTextColor={Colors.textMuted}
+                        value={squadInviteCode}
+                        onChangeText={setSquadInviteCode}
+                        autoCapitalize="characters"
+                        maxLength={15}
+                      />
+                    </View>
+
+                    <TouchableOpacity 
+                      style={[styles.joinButton, { backgroundColor: '#0ea5e9' }, (!squadInviteCode || joiningSquad) && styles.joinButtonDisabled]} 
+                      onPress={() => handleJoinSquad()}
+                      disabled={!squadInviteCode || joiningSquad}
+                    >
+                      <Text style={styles.joinButtonText}>
+                        {joiningSquad ? 'Joining...' : 'Join Squad'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
             </View>
           )}
         </View>
