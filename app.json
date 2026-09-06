@@ -3,7 +3,7 @@
     "name": "GreenLume",
     "slug": "greenscore-app",
     "version": "1.0.0",
-
+    "platforms": ["ios", "android", "web"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -30,6 +30,8 @@
       "package": "com.greenlume.app",
       "googleServicesFile": "./google-services.json",
       "permissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
       ]
@@ -65,6 +67,13 @@
         "projectId": "997f041d-533a-467b-bebd-f92df48f7005"
       }
     },
-    "owner": "adegoke1602"
+    "owner": "adegoke1602",
+    "privacy": "unlisted",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/997f041d-533a-467b-bebd-f92df48f7005"
+    }
   }
 }

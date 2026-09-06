@@ -1,6 +1,6 @@
-// Splash Screen — Animated brand intro, then routes to auth or home
-import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions, Image } from 'react-native';
+// Splash Screen — Animated brand intro with custom background & progress percentage
+import { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Animated, Dimensions, Image, ImageBackground } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { storage } from '../utils/storage';
@@ -10,53 +10,45 @@ import { Typography } from '../constants/typography';
 const { width, height } = Dimensions.get('window');
 
 export default function SplashScreen() {
-  const logoScale = useRef(new Animated.Value(0)).current;
-  const logoRotate = useRef(new Animated.Value(-0.5)).current;
+  const logoScale = useRef(new Animated.Value(0.85)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
-  const progressWidth = useRef(new Animated.Value(0)).current;
   const loadingOpacity = useRef(new Animated.Value(0)).current;
-  const orb1Scale = useRef(new Animated.Value(0.8)).current;
-  const orb2Scale = useRef(new Animated.Value(1.2)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const [percentage, setPercentage] = useState(0);
 
   useEffect(() => {
-    // Logo entrance
+    // Logo entrance animation
     Animated.parallel([
-      Animated.spring(logoScale, { toValue: 1, damping: 15, stiffness: 120, useNativeDriver: true }),
-      Animated.spring(logoRotate, { toValue: 0, damping: 15, stiffness: 120, useNativeDriver: true }),
-      Animated.timing(logoOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.spring(logoScale, { toValue: 1.1, damping: 14, stiffness: 100, useNativeDriver: true }),
+      Animated.timing(logoOpacity, { toValue: 1, duration: 700, useNativeDriver: true }),
     ]).start();
 
     // Tagline fade in
     setTimeout(() => {
-      Animated.timing(taglineOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+      Animated.timing(taglineOpacity, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+    }, 300);
+
+    // Progress area fade in
+    setTimeout(() => {
+      Animated.timing(loadingOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+    }, 500);
+
+    // Track percentage state as animation runs
+    const listenerId = progressAnim.addListener(({ value }) => {
+      setPercentage(Math.min(100, Math.max(0, Math.round(value))));
+    });
+
+    // Start progress bar animation from 0 to 100%
+    setTimeout(() => {
+      Animated.timing(progressAnim, {
+        toValue: 100,
+        duration: 2200,
+        useNativeDriver: false,
+      }).start();
     }, 400);
 
-    // Loading text
-    setTimeout(() => {
-      Animated.timing(loadingOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-    }, 600);
-
-    // Progress bar
-    setTimeout(() => {
-      Animated.timing(progressWidth, { toValue: width * 0.6, duration: 2200, useNativeDriver: false }).start();
-    }, 700);
-
-    // Pulsing orbs
-    Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(orb1Scale, { toValue: 1.2, duration: 2000, useNativeDriver: true }),
-          Animated.timing(orb2Scale, { toValue: 0.8, duration: 2000, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(orb1Scale, { toValue: 0.8, duration: 2000, useNativeDriver: true }),
-          Animated.timing(orb2Scale, { toValue: 1.2, duration: 2000, useNativeDriver: true }),
-        ]),
-      ])
-    ).start();
-
-    // Navigate after 3 seconds
+    // Navigation trigger after 3 seconds
     const timer = setTimeout(async () => {
       const isAuth = await storage.isAuthenticated();
       const isOnboarding = await storage.isOnboardingDone();
@@ -69,124 +61,137 @@ export default function SplashScreen() {
       }
     }, 3000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      progressAnim.removeListener(listenerId);
+      clearTimeout(timer);
+    };
   }, []);
 
-  const spin = logoRotate.interpolate({
-    inputRange: [-0.5, 0],
-    outputRange: ['-180deg', '0deg'],
+  const progressWidthPercent = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
   });
 
   return (
-    <View style={styles.container}>
-      {/* Gradient background */}
-      <LinearGradient colors={['#1b5e20', '#2e7d32', '#388e3c']} style={StyleSheet.absoluteFill} />
+    <ImageBackground
+      source={require('../assets/images/splash_bg.png')}
+      style={styles.container}
+      resizeMode="cover"
+    >
+      {/* Subtle top & bottom shadow gradient for contrast */}
+      <LinearGradient
+        colors={['rgba(255,255,255,0.45)', 'transparent', 'rgba(0,0,0,0.3)']}
+        locations={[0, 0.4, 1]}
+        style={StyleSheet.absoluteFill}
+      />
 
-      {/* Decorative orbs */}
-      <Animated.View style={[styles.orb1, { transform: [{ scale: orb1Scale }] }]} />
-      <Animated.View style={[styles.orb2, { transform: [{ scale: orb2Scale }] }]} />
-
-      {/* Logo */}
+      {/* Brand Logo */}
       <Animated.View
         style={[
           styles.logoContainer,
           {
             opacity: logoOpacity,
-            transform: [{ scale: logoScale }, { rotate: spin }],
+            transform: [{ scale: logoScale }],
           },
         ]}
       >
         <Image
-          source={require('../assets/images/logo_white.png')}
+          source={require('../assets/images/logo_color.png')}
           style={styles.logo}
           resizeMode="contain"
         />
       </Animated.View>
 
-      {/* Tagline */}
-      <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
-        Small actions. Real impact. Every day.
-      </Animated.Text>
+      {/* Bottom Loading Section */}
+      <Animated.View style={[styles.bottomSection, { opacity: loadingOpacity }]}>
+        {/* Tagline */}
+        <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
+          Growing a better tomorrow...
+        </Animated.Text>
 
-      {/* Progress area */}
-      <Animated.View style={[styles.loadingArea, { opacity: loadingOpacity }]}>
-        <Text style={styles.loadingText}>Preparing your dashboard...</Text>
-        <View style={styles.progressTrack}>
-          <Animated.View style={[styles.progressBar, { width: progressWidth }]} />
+        {/* Progress Bar + Percentage Row */}
+        <View style={styles.progressRow}>
+          <View style={styles.progressTrack}>
+            <Animated.View style={[styles.progressBar, { width: progressWidthPercent }]} />
+          </View>
+          <Text style={styles.percentText}>{percentage}%</Text>
         </View>
       </Animated.View>
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orb1: {
-    position: 'absolute',
-    top: -80,
-    right: -80,
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  orb2: {
-    position: 'absolute',
-    bottom: -100,
-    left: -100,
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    justifyContent: 'space-between',
   },
   logoContainer: {
-    marginBottom: 32,
-    shadowColor: Colors.primaryLight,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 40,
-    elevation: 20,
+    marginTop: height * 0.20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   logo: {
-    width: 260,
-    height: 120,
+    width: width * 0.86,
+    height: 150,
+  },
+  bottomSection: {
+    marginBottom: height * 0.08,
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 28,
   },
   tagline: {
     fontFamily: Typography.fontFamily.medium,
     fontSize: Typography.fontSize.lg,
-    color: 'rgba(255,255,255,0.85)',
+    color: '#ffffff',
     textAlign: 'center',
-    letterSpacing: 0.3,
-    marginBottom: 60,
-    paddingHorizontal: 40,
+    marginBottom: 16,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-  loadingArea: {
-    position: 'absolute',
-    bottom: 80,
+  progressRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
     width: '100%',
   },
-  loadingText: {
-    fontFamily: Typography.fontFamily.regular,
-    fontSize: Typography.fontSize.sm,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 12,
-  },
   progressTrack: {
-    width: width * 0.6,
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 2,
+    width: width * 0.62,
+    height: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 6,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   progressBar: {
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    borderRadius: 2,
+    height: '100%',
+    backgroundColor: '#15803d',
+    borderRadius: 6,
+  },
+  percentText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.md,
+    color: '#15803d',
+    minWidth: 42,
+    textAlign: 'left',
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
+

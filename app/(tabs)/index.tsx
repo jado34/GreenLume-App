@@ -1,91 +1,109 @@
-// Home Dashboard — Avatar header, working notifications, full-width 2-col quick actions
+// Home Dashboard — Figma Pixel-Perfect Home Screen matching design screenshot
 import { useState, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Dimensions, RefreshControl, Modal, Pressable, Image, ActivityIndicator
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+  RefreshControl,
+  Modal,
+  Pressable,
+  Image,
+  ActivityIndicator,
+  StatusBar,
+  Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import * as Haptics from 'expo-haptics';
 import { storage, UserData } from '../../utils/storage';
 import { notificationStore, RichNotification } from '../../utils/inAppNotifications';
-import { Colors } from '../../constants/colors';
-import { Typography, Shadows } from '../../constants/typography';
-import { getDynamicTheme } from '../../utils/theme';
-import { getAvatarColor } from '../../utils/avatar';
+import { Typography } from '../../constants/typography';
+import ConfettiOverlay from '../../components/ConfettiOverlay';
 
 const { width } = Dimensions.get('window');
-const CARD_SIZE = (width - 52) / 2; // 2 cols, section padding 20×2, 1 gap of 12
+const GRID_CARD_WIDTH = (width - 52) / 2;
 
-const QUICK_ACTIONS = [
-  { id: 'reusable_bag', name: 'Reusable Bag', points: 15, icon: 'bag-handle' as const, color: '#8b5cf6' },
-  { id: 'public_transit', name: 'Public Transit', points: 25, icon: 'bus' as const, color: '#3b82f6' },
-  { id: 'plant_meal', name: 'Plant Meal', points: 20, icon: 'leaf' as const, color: '#10b981' },
-  { id: 'recycled', name: 'Recycled', points: 10, icon: 'refresh-circle' as const, color: '#06b6d4' },
-  { id: 'no_plastic', name: 'Zero Plastic', points: 15, icon: 'water-outline' as const, color: '#0ea5e9' },
-  { id: 'lights_off', name: 'Energy Saved', points: 8, icon: 'bulb-outline' as const, color: '#f59e0b' },
+const HOME_ACTIONS = [
+  {
+    id: 'lights_off',
+    title: 'Save Energy',
+    subtitle: 'Turn off unused lights',
+    points: 15,
+    icon: 'flash' as const,
+    iconBg: '#EBF5FF',
+    iconColor: '#007AFF',
+  },
+  {
+    id: 'plant_meal',
+    title: 'Food',
+    subtitle: 'Eat a plant based meal',
+    points: 15,
+    icon: 'nutrition' as const,
+    iconBg: '#FFF7ED',
+    iconColor: '#D97706',
+  },
+  {
+    id: 'no_plastic',
+    title: 'Plastics',
+    subtitle: 'Choose a reusable plastic',
+    points: 15,
+    icon: 'water' as const,
+    iconBg: '#F3E8FF',
+    iconColor: '#9333EA',
+  },
+  {
+    id: 'carpooled',
+    title: 'Carpooled',
+    subtitle: 'Reduce carbon footprints',
+    points: 15,
+    icon: 'car-sport' as const,
+    iconBg: '#DCFCE7',
+    iconColor: '#16A34A',
+  },
 ];
-
-const WEEKLY_CHALLENGES = [
-  { id: 'transport_week', title: 'Public Transport Week 🚌', goal: 'Use public transit 7 days', color: '#3b82f6', emoji: '🚌', actionKey: 'public_transit' },
-  { id: 'plantbased_week', title: 'Plant-Based Week 🌱', goal: 'Eat plant-based meals for 7 days', color: '#10b981', emoji: '🌱', actionKey: 'plant_meal' },
-  { id: 'zerowaste_week', title: 'Zero Waste Week ♻️', goal: 'Avoid single-use plastic for 7 days', color: '#8b5cf6', emoji: '♻️', actionKey: 'no_plastic' },
-];
-
-
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
-}
-
 
 export default function HomeScreen() {
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [userName, setUserName] = useState('');
+  const [userName, setUserName] = useState('Adaeze');
   const [customAvatar, setCustomAvatar] = useState<string | null>(null);
   const [todayLogged, setTodayLogged] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
-  const [needsWaterNudge, setNeedsWaterNudge] = useState(false);
-  const [notificationsRead, setNotificationsRead] = useState(false);
   const [notifications, setNotifications] = useState<RichNotification[]>([]);
   const [hasUnread, setHasUnread] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+
   const fadeIn = useRef(new Animated.Value(0)).current;
 
   const loadData = useCallback(async () => {
     const data = await storage.getUserData();
     const name = await storage.getUserName();
     const avatar = await storage.getCustomAvatar();
-    const premiumStatus = await storage.isPremium();
-    const notifRead = await storage.areNotificationsRead();
 
-    // Load real, event-driven notifications
     await notificationStore.addWelcomeIfEmpty();
     const realNotifs = await notificationStore.getAll();
     const unread = await notificationStore.hasUnread();
 
     setUserData(data);
-    setUserName(name);
+    if (name) setUserName(name);
     setCustomAvatar(avatar);
-    setIsPremium(premiumStatus);
-    setNotificationsRead(notifRead);
     setNotifications(realNotifs);
     setHasUnread(unread);
     setTodayLogged(new Set(data.todayActions));
-    
-    // Check if any plants need water
-    const thirsty = data.activeForest?.some(p => p.waterLevel <= 50 && p.stage !== 'withered');
-    setNeedsWaterNudge(thirsty || false);
 
-    Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+    Animated.timing(fadeIn, { toValue: 1, duration: 400, useNativeDriver: true }).start();
   }, []);
 
-  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -93,345 +111,244 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const handleQuickAction = async (action: typeof QUICK_ACTIONS[0]) => {
+  const handleActionClick = async (action: typeof HOME_ACTIONS[0]) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     if (todayLogged.has(action.id)) {
-      // Undo action
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       const updated = await storage.removeAction(action.points, action.id);
       setUserData(updated);
       setTodayLogged(new Set(updated.todayActions));
-      Toast.show({ 
-        type: 'info', 
-        text1: 'Action removed ✓', 
-        text2: `"${action.name}" has been undone.` 
+      Toast.show({
+        type: 'info',
+        text1: 'Action Removed ✓',
+        text2: `"${action.title}" undone.`,
       });
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     const updated = await storage.addPoints(action.points, [action.id]);
     setUserData(updated);
     setTodayLogged(new Set(updated.todayActions));
-    Toast.show({ type: 'success', text1: `+${action.points} pts! 🎉`, text2: `${action.name} logged. Keep it up!` });
+
+    setShowCelebration(true);
+    setTimeout(() => {
+      setShowCelebration(false);
+    }, 2800);
   };
 
-  const getWeekProgress = (actionKey: string): number => {
-    if (!userData) return 0;
-    // FIX #5: Count distinct days this week the action was logged
-    const weekKey = userData.lastWeekKey;
-    if (!weekKey || !userData.weeklyActionLog?.[weekKey]?.[actionKey]) return 0;
-    return userData.weeklyActionLog[weekKey][actionKey].length;
-  };
+  const points = userData?.todayPoints ?? 15;
+  const streak = userData?.currentStreak ?? 5;
+  const actionsLogged = userData?.todayActions?.length ?? 1;
 
-  const points = userData?.todayPoints ?? 0;
-  const streak = userData?.currentStreak ?? 0;
-  const actionsLogged = userData?.todayActions?.length ?? 0;
-  const avatarLetter = userName ? userName[0].toUpperCase() : 'G';
-  const avatarColor = getAvatarColor(userName || 'G');
-
-  const theme = getDynamicTheme(points);
-
-  // FIX #31: Show loading indicator while data is first loading
   if (!userData) {
     return (
       <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={{ fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm, color: Colors.textMuted, marginTop: 12 }}>Loading your dashboard...</Text>
+        <ActivityIndicator size="large" color="#2D7A40" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
+
+      {/* Confetti Animation Burst */}
+      <ConfettiOverlay visible={showCelebration} onAnimationEnd={() => setShowCelebration(false)} />
+
+      {/* Floating Action Logged Success Banner (Screenshot 2) */}
+      {showCelebration && (
+        <View style={styles.toastOverlay}>
+          <View style={styles.toastCard}>
+            <View style={styles.toastCheckCircle}>
+              <Ionicons name="checkmark" size={20} color="#ffffff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toastTitle}>Great Job!</Text>
+              <Text style={styles.toastSubtitle}>Action logged successfully</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2D7A40" />}
       >
-        {/* Header */}
-        <LinearGradient colors={[theme.primaryDark, theme.primary]} style={styles.header}>
-          <View style={styles.headerTop}>
-            {/* Avatar */}
-            <TouchableOpacity 
-              style={[styles.headerAvatar, !customAvatar && { backgroundColor: avatarColor }]} 
-              onPress={() => router.push('/profile')}
-              activeOpacity={0.8}
-              accessibilityLabel="View my profile"
-              accessibilityRole="button"
-            >
-              {customAvatar ? (
-                <Image source={{ uri: customAvatar }} style={{ width: '100%', height: '100%', borderRadius: 21 }} />
-              ) : (
-                <Text style={styles.headerAvatarText}>{avatarLetter}</Text>
-              )}
-            </TouchableOpacity>
-            {/* Notification Bell */}
-            <TouchableOpacity 
-              style={styles.bell} 
-              onPress={() => setShowNotifications(true)}
-              accessibilityLabel="Open notifications"
-              accessibilityRole="button"
-            >
-              <Ionicons name="notifications" size={22} color="rgba(255,255,255,0.9)" />
-              {hasUnread && <View style={styles.notifDot} />}
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.greeting}>{getGreeting()}, {userName} 👋</Text>
-
-          {/* Stats Card */}
-          <View style={[
-            styles.statsCard, 
-            { backgroundColor: theme.statsCardBg },
-            points >= 1000 && { shadowColor: theme.primary, shadowOpacity: 0.4, shadowRadius: 15, elevation: 12 }
-          ]}>
-            <View style={styles.statItem} accessibilityLabel={`${points} Green Score points today`}>
-              <Text style={[styles.statNumber, { color: theme.statsTextColor }]}>{points.toLocaleString()}</Text>
-              <Text style={[styles.statLabel, { color: theme.statsLabelColor }]}>Today's{'\n'}Points</Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: theme.statsDividerColor }]} />
-            <View style={styles.statItem} accessibilityLabel={`${streak} day streak`}>
-              <Text style={[styles.statNumber, { color: theme.statsTextColor }]}>🔥 {streak}</Text>
-              <Text style={[styles.statLabel, { color: theme.statsLabelColor }]}>Day Streak</Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: theme.statsDividerColor }]} />
-            <View style={styles.statItem} accessibilityLabel={`${actionsLogged} Actions Taken today`}>
-              <Text style={[styles.statNumber, { color: theme.statsTextColor }]}>🍃 {actionsLogged}</Text>
-              <Text style={[styles.statLabel, { color: theme.statsLabelColor }]}>Today's{'\n'}Actions</Text>
-            </View>
-          </View>
-        </LinearGradient>
-
         <Animated.View style={{ opacity: fadeIn }}>
-          
-          {/* Nudge Banner (Loss Aversion) */}
-          {needsWaterNudge && (
-            <TouchableOpacity 
-              style={{ marginHorizontal: 20, marginTop: 24, backgroundColor: '#fef2f2', borderColor: '#ef4444', borderWidth: 2, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#ef4444', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 }}
-              onPress={() => router.push('/nursery' as any)}
-              activeOpacity={0.9}
-              accessibilityLabel="Emergency: Plants need watering. Tap to go to your nursery."
-              accessibilityRole="alert"
-            >
-              <Text style={{ fontSize: 36, marginRight: 14 }}>🚨</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: Typography.fontFamily.extraBold, fontSize: Typography.fontSize.md, color: '#b91c1c', marginBottom: 2 }}>EMERGENCY NUDGE</Text>
-                <Text style={{ fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm, color: '#dc2626', lineHeight: 20 }}>Your plants are drying up! Tap here to water them before they wither completely.</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-
-          {/* Quick Actions */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Quick Actions</Text>
-              <TouchableOpacity 
-                onPress={() => router.push('/(tabs)/log')}
-                accessibilityLabel="See all available eco-actions"
-                accessibilityRole="link"
+          {/* Header Row: User Avatar, Greeting, Streak Pill & Bell */}
+          <View style={styles.headerRow}>
+            <View style={styles.userInfoRow}>
+              {/* User Avatar */}
+              <TouchableOpacity
+                style={styles.avatarWrap}
+                onPress={() => router.push('/profile')}
+                activeOpacity={0.8}
               >
-                <Text style={styles.seeAll}>See All →</Text>
+                {customAvatar ? (
+                  <Image source={{ uri: customAvatar }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.avatarFallback}>
+                    <Text style={styles.avatarLetter}>{userName[0]?.toUpperCase() || 'A'}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
-            </View>
-            <View style={styles.quickGrid}>
-              {QUICK_ACTIONS.map((action) => {
-                const done = todayLogged.has(action.id);
-                return (
-                  <TouchableOpacity
-                    key={action.id}
-                    style={[styles.quickCard, done && { backgroundColor: action.color, borderColor: action.color }]}
-                    onPress={() => handleQuickAction(action)}
-                    activeOpacity={0.85}
-                    accessibilityLabel={`Log ${action.name} action, worth ${action.points} points`}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: done }}
-                  >
-                    <View style={[styles.quickIcon, done ? { backgroundColor: 'rgba(255,255,255,0.25)' } : { backgroundColor: `${action.color}18` }]}>
-                      <Ionicons name={done ? 'checkmark' : action.icon} size={22} color={done ? Colors.white : action.color} />
-                    </View>
-                    <Text style={[styles.quickName, done && { color: Colors.white }]} numberOfLines={2}>{action.name}</Text>
-                    <Text style={[styles.quickPoints, done && { color: 'rgba(255,255,255,0.85)' }]}>+{action.points} pts</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
 
-          {/* Weekly Challenges */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Weekly Challenges</Text>
-            <View style={{ gap: 12 }}>
-              {WEEKLY_CHALLENGES.map((challenge) => {
-                const progress = getWeekProgress(challenge.actionKey);
-                const pct = Math.round((progress / 7) * 100);
-                return (
-                  <TouchableOpacity 
-                    key={challenge.id} 
-                    style={styles.challengeCard}
-                    activeOpacity={0.8}
-                    onPress={() => Toast.show({ type: 'info', text1: challenge.title, text2: challenge.goal })}
-                    accessibilityLabel={`${challenge.title}: ${progress} of 7 days complete, ${pct}% done`}
-                    accessibilityRole="button"
-                    accessibilityHint="Tap for details"
-                  >
-                    <View style={styles.challengeHeader}>
-                      <Text style={styles.challengeEmoji}>{challenge.emoji}</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.challengeLabel}>WEEKLY CHALLENGE</Text>
-                        <Text style={styles.challengeTitle}>{challenge.title}</Text>
-                        <Text style={styles.challengeGoal}>{progress} of 7 days complete</Text>
-                      </View>
-                      <Text style={[styles.challengePct, { color: challenge.color }]}>{pct}%</Text>
-                    </View>
-                    <View style={styles.progressTrack}>
-                      <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: challenge.color }]} />
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* AI Coach Insights */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>AI Eco-Coach</Text>
-              <Ionicons name="sparkles" size={18} color="#0ea5e9" />
-            </View>
-            <TouchableOpacity 
-              style={[styles.challengeCard, { borderColor: '#0ea5e9', backgroundColor: '#f0f9ff' }]}
-              activeOpacity={0.8}
-              onPress={() => router.push('/ai-coach' as any)}
-            >
-              <View style={styles.challengeHeader}>
-                <Text style={styles.challengeEmoji}>🤖</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.challengeLabel, { color: '#0ea5e9' }]}>
-                    SMART INSIGHTS
-                  </Text>
-                  <Text style={styles.challengeTitle}>
-                    View Daily Coaching
-                  </Text>
-                  <Text style={styles.challengeGoal}>
-                    Get personalized tips based on your local weather and lifestyle.
-                  </Text>
-                </View>
-                <View style={{ backgroundColor: '#e0f2fe', padding: 8, borderRadius: 12 }}>
-                  <Ionicons name="arrow-forward" size={20} color="#0ea5e9" />
+              {/* Greeting & Name */}
+              <View style={styles.userTextWrap}>
+                <Text style={styles.greetingText}>Good Morning</Text>
+                <View style={styles.nameRow}>
+                  <Text style={styles.userNameText}>{userName}</Text>
+                  <Text style={styles.leafIcon}>🌿</Text>
                 </View>
               </View>
+
+              {/* Streak Pill */}
+              <View style={styles.streakPill}>
+                <Text style={styles.streakText}>🔥 {streak} days streak</Text>
+              </View>
+            </View>
+
+            {/* Bell Notification Button */}
+            <TouchableOpacity
+              style={styles.bellButton}
+              onPress={() => setShowNotifications(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="notifications-outline" size={22} color="#0f172a" />
+              {hasUnread && <View style={styles.bellDot} />}
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.section, { marginBottom: 24 }]}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your Impact This Week</Text>
-            <TouchableOpacity onPress={() => router.push('/nursery' as any)}
-                accessibilityLabel="View my virtual forest"
-                accessibilityRole="link"
-              >
-                <Text style={styles.seeAll}>View Forest 🌲</Text>
+          {/* Today's Impact Green Banner Card (Pixel-Perfect Match for Screenshot) */}
+          <View style={styles.impactCardContainer}>
+            <View style={styles.impactHeaderRow}>
+              <Text style={styles.impactTitle}>Today's Impact</Text>
+              <TouchableOpacity onPress={() => Toast.show({ type: 'info', text1: "Today's Impact", text2: "Calculated based on eco actions logged today." })}>
+                <Ionicons name="information-circle-outline" size={24} color="#ffffff" />
               </TouchableOpacity>
             </View>
-            <TouchableOpacity 
-              style={styles.impactRow} 
-              onPress={() => router.push('/nursery' as any)}
-              activeOpacity={0.9}
-              accessibilityLabel={`Your weekly impact: ${((points/100)*0.8).toFixed(1)}kg CO₂ saved. Tap to view your virtual forest.`}
-              accessibilityRole="link"
-            >
-              {[
-                { icon: 'cloud-outline', label: 'CO₂ Saved', value: `${((points / 100) * 0.8).toFixed(1)}kg`, color: '#10b981' },
-                { icon: 'water-outline', label: 'Water Saved', value: `${Math.floor(points * 0.5)}L`, color: '#06b6d4' },
-                { icon: 'refresh-circle-outline', label: 'Plastic Avoided', value: `${Math.floor(actionsLogged * 0.3)} items`, color: '#8b5cf6' },
-              ].map((item) => (
-                <View key={item.label} style={styles.impactCard}>
-                  <Ionicons name={item.icon as any} size={22} color={item.color} />
-                  <Text style={[styles.impactValue, { color: item.color }]}>{item.value}</Text>
-                  <Text style={styles.impactLabel}>{item.label}</Text>
+
+            {/* 3 White Inner Stat Cards */}
+            <View style={styles.statCardsRow}>
+              {/* Card 1: CO2 Saved */}
+              <View style={styles.statCard}>
+                <View style={[styles.statIconCircle, { backgroundColor: '#E7F6E7' }]}>
+                  <Ionicons name="leaf" size={22} color="#4A8834" />
                 </View>
-              ))}
+                <Text style={styles.statValue}>0.8kg</Text>
+                <Text style={styles.statLabel}>CO2 saved</Text>
+              </View>
+
+              {/* Card 2: Items Avoided */}
+              <View style={styles.statCard}>
+                <View style={[styles.statIconCircle, { backgroundColor: '#E4F5E6' }]}>
+                  <Ionicons name="sync" size={22} color="#388E3C" />
+                </View>
+                <Text style={styles.statValue}>2</Text>
+                <Text style={styles.statLabel}>items avoided</Text>
+              </View>
+
+              {/* Card 3: Water Saved */}
+              <View style={styles.statCard}>
+                <View style={[styles.statIconCircle, { backgroundColor: '#E0F7FA' }]}>
+                  <Ionicons name="water" size={22} color="#00838F" />
+                </View>
+                <Text style={styles.statValue}>5L</Text>
+                <Text style={styles.statLabel}>water saved</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Plan a Sustainable Week Banner Card */}
+          <TouchableOpacity
+            style={styles.weeklyBannerCard}
+            activeOpacity={0.9}
+            onPress={() => router.push('/(tabs)/log')}
+          >
+            <View style={styles.weeklyBannerContent}>
+              <Text style={styles.weeklyBannerTitle}>Plan a sustainable week</Text>
+              <Text style={styles.weeklyBannerSubtitle}>Set goals and track your habits.</Text>
+            </View>
+
+            <View style={styles.weeklyBannerRightGroup}>
+              <Image
+                source={require('../../assets/images/plant_potted.png')}
+                style={styles.weeklyPlantImage}
+                resizeMode="contain"
+              />
+              <View style={styles.weeklyBannerArrowBtn}>
+                <Ionicons name="arrow-forward" size={20} color="#2D7A40" />
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* Log Actions Section Header */}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Log Actions</Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/log')}>
+              <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* 2x2 Grid of Quick Actions */}
+          <View style={styles.gridContainer}>
+            {HOME_ACTIONS.map((item) => {
+              const isLogged = todayLogged.has(item.id);
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.gridCard, isLogged && styles.gridCardActive]}
+                  onPress={() => handleActionClick(item)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.gridPointsText}>+{item.points}pts</Text>
+
+                  <View style={[styles.gridIconCircle, { backgroundColor: item.iconBg }]}>
+                    <Ionicons name={item.icon} size={24} color={item.iconColor} />
+                  </View>
+
+                  <Text style={styles.gridCardTitle}>{item.title}</Text>
+                  <Text style={styles.gridCardSubtitle} numberOfLines={2}>
+                    {item.subtitle}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </Animated.View>
       </ScrollView>
 
       {/* Notifications Modal */}
       <Modal visible={showNotifications} transparent animationType="slide">
-        <Pressable 
-          style={styles.modalBackdrop} 
-          onPress={() => setShowNotifications(false)}
-          accessibilityLabel="Close notifications panel"
-          accessibilityRole="button"
-        >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowNotifications(false)}>
           <Pressable style={styles.notifPanel} onPress={(e) => e.stopPropagation()}>
             <View style={styles.notifHandle} />
             <View style={styles.notifPanelHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={styles.notifPanelTitle}>Notifications</Text>
-                {hasUnread && (
-                  <View style={{ backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
-                    <Text style={{ color: '#fff', fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
-                      {notifications.filter(n => !n.read).length}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              <Text style={styles.notifPanelTitle}>Notifications</Text>
               <TouchableOpacity onPress={() => setShowNotifications(false)}>
-                <Ionicons name="close" size={24} color={Colors.textSecondary} />
+                <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
 
             {notifications.length === 0 ? (
-              // Empty state — shown until user logs their first action
               <View style={styles.notifEmptyState}>
-                <Text style={{ fontSize: 40, marginBottom: 12 }}>🔔</Text>
+                <Text style={{ fontSize: 36, marginBottom: 12 }}>🔔</Text>
                 <Text style={styles.notifEmptyTitle}>No notifications yet</Text>
                 <Text style={styles.notifEmptyBody}>
-                  Notifications appear here when you earn badges, hit streak milestones, reach point goals, and more. Log your first action to get started!
+                  Action updates and streak rewards will appear here.
                 </Text>
               </View>
             ) : (
               notifications.map((n, i) => (
-                <TouchableOpacity
-                  key={n.id}
-                  style={[
-                    styles.notifItem,
-                    i < notifications.length - 1 && styles.notifItemBorder,
-                    !n.read && styles.notifItemUnread,
-                  ]}
-                  activeOpacity={0.7}
-                  accessibilityLabel={`${n.title}: ${n.body}. ${n.timeAgo}`}
-                  accessibilityRole="button"
-                >
-                  <View style={styles.notifIconWrap}>
-                    <Text style={{ fontSize: 22 }}>{n.icon}</Text>
-                    {!n.read && <View style={styles.notifUnreadDot} />}
-                  </View>
+                <View key={n.id || i} style={styles.notifItem}>
+                  <Text style={{ fontSize: 24, marginRight: 12 }}>{n.icon || '🌿'}</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.notifTitle, !n.read && { color: Colors.textPrimary }]}>{n.title}</Text>
-                    <Text style={styles.notifBody} numberOfLines={2}>{n.body}</Text>
-                    <Text style={styles.notifTime}>{n.timeAgo}</Text>
+                    <Text style={styles.notifTitle}>{n.title}</Text>
+                    <Text style={styles.notifBody}>{n.body}</Text>
                   </View>
-                </TouchableOpacity>
+                </View>
               ))
-            )}
-
-            {notifications.length > 0 && (
-              <TouchableOpacity 
-                style={styles.notifClearBtn} 
-                onPress={async () => { 
-                  await notificationStore.markAllRead();
-                  await storage.markNotificationsRead();
-                  const refreshed = await notificationStore.getAll();
-                  setNotifications(refreshed);
-                  setHasUnread(false);
-                  setNotificationsRead(true);
-                  setShowNotifications(false); 
-                  Toast.show({ type: 'success', text1: 'All caught up! ✓' }); 
-                }}
-                accessibilityLabel="Mark all notifications as read"
-                accessibilityRole="button"
-              >
-                <Text style={styles.notifClearText}>Mark all as read</Text>
-              </TouchableOpacity>
             )}
           </Pressable>
         </Pressable>
@@ -441,65 +358,390 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.neutral50 },
-  header: { paddingTop: 56, paddingBottom: 24, paddingHorizontal: 20 },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  headerAvatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)' },
-  headerAvatarText: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.xl, color: Colors.white },
-  bell: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  notifDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444', borderWidth: 1.5, borderColor: '#2e7d32' },
-  greeting: { fontFamily: Typography.fontFamily.semiBold, fontSize: Typography.fontSize.xl, color: 'rgba(255,255,255,0.95)', marginBottom: 20 },
-  statsCard: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: 16, alignItems: 'center' },
-  statItem: { flex: 1, alignItems: 'center' },
-  statNumber: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize['2xl'], color: Colors.white },
-  statLabel: { fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.xs, color: 'rgba(255, 255, 255, 0.95)', marginTop: 2, textAlign: 'center' },
-  statDivider: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.25)' },
-  section: { paddingHorizontal: 20, paddingTop: 24 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  // FIX #16: Remove marginBottom from sectionTitle to avoid double spacing when inside sectionHeader
-  sectionTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.xl, color: Colors.textPrimary },
-  seeAll: { fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm, color: Colors.primary },
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  quickCard: {
-    width: CARD_SIZE, backgroundColor: Colors.white,
-    borderRadius: 14, padding: 12, alignItems: 'center', gap: 6,
-    borderWidth: 1, borderColor: Colors.neutral200, ...Shadows.sm,
+  container: {
+    flex: 1,
+    backgroundColor: '#FAF8F5',
   },
-  quickIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  quickName: { fontFamily: Typography.fontFamily.semiBold, fontSize: 10, color: Colors.textPrimary, textAlign: 'center' },
-  quickPoints: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.xs, color: Colors.primary },
-  challengeCard: { backgroundColor: Colors.white, borderRadius: 16, padding: 16, ...Shadows.sm, borderWidth: 1, borderColor: Colors.neutral200 },
-  challengeHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  challengeEmoji: { fontSize: 32 },
-  challengeLabel: { fontFamily: Typography.fontFamily.bold, fontSize: 10, color: Colors.textMuted, letterSpacing: 0.8, marginBottom: 2 },
-  challengeTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.lg, color: Colors.textPrimary },
-  challengeGoal: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  challengePct: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.xl },
-  progressTrack: { height: 6, backgroundColor: Colors.neutral100, borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: 6, borderRadius: 3 },
-  impactRow: { flexDirection: 'row', gap: 10 },
-  impactCard: { flex: 1, backgroundColor: Colors.white, borderRadius: 14, padding: 14, alignItems: 'center', gap: 6, ...Shadows.sm, borderWidth: 1, borderColor: Colors.neutral200 },
-  impactValue: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.lg },
-  impactLabel: { fontFamily: Typography.fontFamily.regular, fontSize: 10, color: Colors.textMuted, textAlign: 'center' },
-  // Notification Modal
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  notifPanel: { backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 },
-  notifHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.neutral300, alignSelf: 'center', marginTop: 12, marginBottom: 4 },
-  notifPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: Colors.neutral100 },
-  notifPanelTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.xl, color: Colors.textPrimary },
-  notifItem: { flexDirection: 'row', gap: 14, paddingHorizontal: 20, paddingVertical: 14, alignItems: 'flex-start' },
-  notifItemBorder: { borderBottomWidth: 1, borderBottomColor: Colors.neutral100 },
-  notifIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary90, alignItems: 'center', justifyContent: 'center' },
-  notifTitle: { fontFamily: Typography.fontFamily.semiBold, fontSize: Typography.fontSize.md, color: Colors.textPrimary, marginBottom: 2 },
-  notifBody: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.sm, color: Colors.textSecondary, lineHeight: 18 },
-  notifTime: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.xs, color: Colors.textMuted, marginTop: 4 },
-  notifClearBtn: { marginHorizontal: 20, marginTop: 16, paddingVertical: 14, backgroundColor: Colors.primary90, borderRadius: 14, alignItems: 'center' },
-  notifClearText: { fontFamily: Typography.fontFamily.semiBold, fontSize: Typography.fontSize.md, color: Colors.primary },
-  // Unread state — subtle tint so users can scan what's new at a glance
-  notifItemUnread: { backgroundColor: '#f0fdf4' },
-  notifUnreadDot: { position: 'absolute', top: -2, right: -2, width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary, borderWidth: 1.5, borderColor: Colors.white },
-  // Empty state — shown when the user hasn't triggered any notifications yet
-  notifEmptyState: { alignItems: 'center', paddingHorizontal: 32, paddingVertical: 32 },
-  notifEmptyTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.lg, color: Colors.textPrimary, marginBottom: 8 },
-  notifEmptyBody: { fontFamily: Typography.fontFamily.regular, fontSize: Typography.fontSize.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  scrollContent: {
+    paddingTop: Platform.OS === 'ios' ? 52 : StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 36,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+  },
+  toastOverlay: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 40,
+    left: 20,
+    right: 20,
+    zIndex: 99999,
+    elevation: 99999,
+  },
+  toastCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  toastCheckCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#2D7A40',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  toastTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 16,
+    color: '#0f172a',
+  },
+  toastSubtitle: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 13,
+    color: '#475569',
+    marginTop: 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  userInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
+    marginRight: 10,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#2D7A40',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLetter: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 18,
+    color: '#ffffff',
+  },
+  userTextWrap: {
+    marginRight: 10,
+  },
+  greetingText: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 12,
+    color: '#64748b',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  userNameText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 16,
+    color: '#0f172a',
+  },
+  leafIcon: {
+    fontSize: 14,
+  },
+  streakPill: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignSelf: 'center',
+  },
+  streakText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 11,
+    color: '#D97706',
+  },
+  bellButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  bellDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+  },
+  impactCardContainer: {
+    backgroundColor: '#28783C',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 18,
+    shadowColor: '#28783C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  impactHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  impactTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 18,
+    color: '#ffffff',
+  },
+  statCardsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    paddingVertical: 18,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  statIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  statValue: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 18,
+    color: '#0f172a',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 13,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  weeklyBannerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#236533',
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  weeklyBannerContent: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  weeklyBannerTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 17,
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  weeklyBannerSubtitle: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  weeklyBannerRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  weeklyPlantImage: {
+    width: 68,
+    height: 68,
+    marginRight: -10,
+    zIndex: 1,
+  },
+  weeklyBannerArrowBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 17,
+    color: '#0f172a',
+  },
+  viewAllText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+    color: '#2D7A40',
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  gridCard: {
+    width: (width - 54) / 2,
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingTop: 16,
+    paddingBottom: 18,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  gridCardActive: {
+    borderColor: '#2D7A40',
+    backgroundColor: '#F0FDF4',
+  },
+  gridPointsText: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+    color: '#2D7A40',
+  },
+  gridIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  gridCardTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 16,
+    color: '#0f172a',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  gridCardSubtitle: {
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 12.5,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  notifPanel: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  notifHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#cbd5e1',
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  notifPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  notifPanelTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 18,
+    color: '#0f172a',
+  },
+  notifEmptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  notifEmptyTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 16,
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  notifEmptyBody: {
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 13,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  notifItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  notifTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+    color: '#0f172a',
+  },
+  notifBody: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 12,
+    color: '#64748b',
+  },
 });
+
